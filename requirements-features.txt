@@ -1,0 +1,5 @@
+# Thêm cho lệnh `python -m features embed`.
+# Cài torch theo CUDA của máy trước, ví dụ:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+adapters>=1.1
+transformers>=4.45,<5
