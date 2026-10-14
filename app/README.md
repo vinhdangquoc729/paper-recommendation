@@ -9,7 +9,7 @@ npm run dev        # http://localhost:5173, cần chạy song song: python -m ap
 npm run build      # kiểm tra kiểu + đóng gói ra dist/
 ```
 
-## Ba màn hình
+## Giao diện
 
 | Đường dẫn | Màn | Nội dung |
 |---|---|---|
@@ -20,13 +20,6 @@ npm run build      # kiểm tra kiểu + đóng gói ra dist/
 Rê chuột (hoặc Tab tới) tên bài ở bất kỳ đâu sẽ hiện khung xem nhanh: tác giả, hội nghị, kết quả, abstract cắt còn khoảng 600 ký tự.
 
 Trạng thái tìm kiếm và bộ lọc nằm trên URL (`/?q=diffusion&venue=iclr&page=2`) nên nút Back và chia sẻ link hoạt động.
-
-## Quy ước giao diện
-
-- Cổ điển, ít trang trí: nền trắng, đường kẻ mảnh, bảng và `fieldset`; không bo góc, không đổ bóng, không dùng kiểu "thẻ".
-- Màu chủ đạo là xanh lá Excel (`--green-700: #217346`, thanh tiêu đề `#185c37`), khai báo ở đầu [styles.css](src/styles.css).
-- Tiêu đề bài dùng font có chân (Cambria / Times New Roman, có đủ dấu tiếng Việt); phần còn lại dùng Segoe UI.
-- Không dùng ký tự gạch dài và dấu chấm giữa trong văn bản giao diện; ngăn cách bằng `|` hoặc dấu phẩy.
 
 ## Cấu trúc
 

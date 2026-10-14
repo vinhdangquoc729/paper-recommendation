@@ -1,8 +1,8 @@
 # Hệ gợi ý bài báo khoa học
 
-Bài tập lớn môn Recommender Systems. Corpus hiện tại: ICLR, ICML, NeurIPS, TMLR (2023+). Đặc tả đầy đủ ở [paper-recommender-spec.md](paper-recommender-spec.md).
+Corpus hiện tại: ICLR, ICML, NeurIPS, TMLR (2023+). Đặc tả đầy đủ ở [paper-recommender-spec.md](paper-recommender-spec.md).
 
-## Cấu trúc theo module
+## Kiến trúc
 
 Mỗi module là một package Python độc lập, có CLI riêng (`python -m <module>`). Các module **chỉ trao đổi
 với nhau qua dữ liệu** trong `data/`, không import chéo logic của nhau (trừ `common/`).
@@ -10,12 +10,12 @@ với nhau qua dữ liệu** trong `data/`, không import chéo logic của nhau
 | Module | Vai trò | Đọc | Ghi |
 |---|---|---|---|
 | [common/](common/) | cấu hình, HTTP client có backoff, JSONL, SQLite | | |
-| [crawler/](crawler/) | **Module 1**: thu thập dữ liệu từ Semantic Scholar và OpenReview | API | `data/raw/`, `data/corpus.sqlite` |
-| [analysis/](analysis/) | phân tích độ thưa của dữ liệu | `data/corpus.sqlite` | `reports/` |
-| [features/](features/) | **Module 2**: bảng bài thống nhất, điểm chất lượng, embedding SPECTER2 | `data/corpus.sqlite` | `data/features/` |
-| `recsys/` *(sắp làm)* | hồ sơ người dùng, sinh ứng viên, xếp hạng, re-ranking | | |
-| `eval/` *(sắp làm)* | giao thức đánh giá, metric, ablation | | |
-| [api/](api/) | backend FastAPI cho 3 màn hình; logic gợi ý hiện là bản tạm | `data/features/`, `data/corpus.sqlite` | `data/app.sqlite` |
+| [crawler/](crawler/) | thu thập dữ liệu từ Semantic Scholar và OpenReview | API | `data/raw/`, `data/corpus.sqlite` |
+| [analysis/](analysis/) | phân tích dữ liệu | `data/corpus.sqlite` | `reports/` |
+| [features/](features/) | bảng bài thống nhất, điểm chất lượng, embedding SPECTER2 | `data/corpus.sqlite` | `data/features/` |
+| `recsys/` | hồ sơ người dùng, sinh ứng viên, xếp hạng, re-ranking | | |
+| `eval/` | giao thức đánh giá, metric, ablation | | |
+| [api/](api/) | backend FastAPI | `data/features/`, `data/corpus.sqlite` | `data/app.sqlite` |
 | [app/](app/) | giao diện React: Bài báo, Đọc bài, Tài khoản | API | |
 
 ## Cài đặt

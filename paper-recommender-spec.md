@@ -1,6 +1,6 @@
 # Đặc tả triển khai: Hệ gợi ý bài báo khoa học
 
-> Bài tập lớn môn Recommender Systems. Tài liệu này mô tả bài toán, dữ liệu, thuật toán, tính năng, kiến trúc, đánh giá và lộ trình triển khai.
+> Tài liệu này mô tả bài toán, dữ liệu, thuật toán, tính năng, kiến trúc, đánh giá và lộ trình triển khai.
 
 ---
 
@@ -31,7 +31,7 @@
 
 Gợi ý cho nhà nghiên cứu những bài báo **liên quan**, **mới** và **có giá trị**, dựa trên lịch sử công bố và đọc của chính họ.
 
-### Ba vấn đề cần giải quyết (góp ý của giảng viên)
+### Ba vấn đề cần giải quyết 
 
 | # | Vấn đề | Hướng giải quyết | Khối liên quan |
 |---|---|---|---|
@@ -46,7 +46,7 @@ Người dùng có thể khai báo **"mình là ai"**: liên kết danh tính t�
 ### Phạm vi
 
 - Lĩnh vực: ML / AI (theo phạm vi dữ liệu OpenReview).
-- Venue đề xuất: ICLR 2023–2026, NeurIPS 2023–2025, TMLR (điều chỉnh theo dữ liệu thực tế).
+- Venue đề xuất: ICLR 2023–2026, NeurIPS 2023–2025, TMLR.
 
 ---
 
