@@ -15,7 +15,8 @@ với nhau qua dữ liệu** trong `data/`, không import chéo logic của nhau
 | [features/](features/) | **Module 2**: bảng bài thống nhất, điểm chất lượng, embedding SPECTER2 | `data/corpus.sqlite` | `data/features/` |
 | `recsys/` *(sắp làm)* | hồ sơ người dùng, sinh ứng viên, xếp hạng, re-ranking | | |
 | `eval/` *(sắp làm)* | giao thức đánh giá, metric, ablation | | |
-| `api/`, `app/` *(sắp làm)* | backend, giao diện | | |
+| [api/](api/) | backend FastAPI cho 3 màn hình; logic gợi ý hiện là bản tạm | `data/features/`, `data/corpus.sqlite` | `data/app.sqlite` |
+| [app/](app/) | giao diện React: Bài báo, Đọc bài, Tài khoản | API | |
 
 ## Cài đặt
 
@@ -32,6 +33,8 @@ python -m crawler openreview   # cào OpenReview (cần đăng nhập)
 python -m crawler load         # dựng lại data/corpus.sqlite sau khi cào thêm
 python -m analysis             # -> reports/sparsity_report.md
 python -m features all         # items -> quality -> embed (embed cần requirements-features.txt)
+python -m api                  # backend tại http://127.0.0.1:8000 (tài liệu: /docs)
+cd app && npm install && npm run dev   # giao diện tại http://localhost:5173
 python -m unittest discover -s tests -t .
 ```
 
