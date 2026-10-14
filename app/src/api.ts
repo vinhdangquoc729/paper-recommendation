@@ -4,7 +4,7 @@ import type {
 } from "./types";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public retryAfterS: number | null = null) {
     super(message);
   }
 }
@@ -22,7 +22,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* giữ nguyên nội dung gốc */
     }
-    throw new ApiError(res.status, String(detail));
+    const retry = Number(res.headers.get("Retry-After"));
+    throw new ApiError(res.status, String(detail), Number.isFinite(retry) && retry > 0 ? retry : null);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

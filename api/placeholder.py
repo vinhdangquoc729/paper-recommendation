@@ -53,13 +53,15 @@ def recommend(df: pd.DataFrame, prefs: Preferences, exclude: set[str]) -> tuple[
     for pid, row in ranked.head(500).iterrows():
         r = []
         if area_hit.get(pid):
-            r.append(f"Thuộc lĩnh vực bạn quan tâm: {area_label(row.primary_area)}")
+            r.append({"code": "area_match", "params": {"area": area_label(row.primary_area)}})
         if kw_hit.get(pid):
-            r.append("Khớp từ khoá: " + ", ".join(kw_hit[pid][:3]))
+            r.append({"code": "keyword_match", "params": {"keywords": ", ".join(kw_hit[pid][:3])}})
         if row.decision in ("accept_oral", "accept_spotlight"):
-            r.append(f"{DECISION_LABELS[row.decision]} tại {VENUE_LABELS[row.venue_key]} {row.edition}")
+            r.append({"code": "strong_decision", "params": {"decision": DECISION_LABELS[row.decision],
+                                                            "venue": VENUE_LABELS[row.venue_key],
+                                                            "year": int(row.edition)}})
         elif (row.rating_z or 0) > 0.8:
-            r.append("Điểm review cao so với cùng hội nghị")
+            r.append({"code": "high_review"})
         reasons[pid] = r[:2]
     return ranked, reasons
 

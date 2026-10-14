@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { PaperLink } from "../components/PaperLink";
-import { authorsShort, decisionLabel } from "../format";
+import { useI18n } from "../prefs";
 import type { AuthoredPaper, Meta, Preferences, Profile } from "../types";
 import { useAsync } from "../useAsync";
 
 /** Tài khoản: thông tin cá nhân, OpenReview ID để nhận diện bài đã đăng, và sở thích. */
 export function AccountPage({ meta }: { meta: Meta | null }) {
+  const { t, time, decision } = useI18n();
   const me = useAsync(() => api.me(), []);
   const [form, setForm] = useState<Profile | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -23,7 +24,7 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
   const saved = useAsync(() => api.saved(), []);
 
   if (me.error) return <p className="error">{me.error}</p>;
-  if (!form) return <p className="muted">Đang tải...</p>;
+  if (!form) return <p className="muted">{t("common.loading")}</p>;
 
   const setPref = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
     setForm({ ...form, preferences: { ...form.preferences, [key]: value } });
@@ -35,7 +36,7 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
       const idChanged = form.openreview_id.trim() !== (me.data?.openreview_id ?? "");
       const res = await api.saveMe(form);
       me.setData(res);
-      setSavedAt(new Date().toLocaleTimeString("vi-VN"));
+      setSavedAt(time(new Date()));
       if (idChanged) setAuthoredKey((k) => k + 1);
     } catch (e) {
       setSaveError((e as Error).message);
@@ -46,35 +47,32 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
 
   return (
     <>
-      <h1>Tài khoản</h1>
+      <h1>{t("account.title")}</h1>
       <p className="muted">
-        Thông tin ở đây được dùng để dựng hồ sơ gợi ý trên trang <Link to="/">Bài báo</Link>.
+        {t("account.introBefore")} <Link to="/">{t("nav.papers")}</Link>{t("account.introAfter")}
       </p>
 
       <fieldset>
-        <legend>Thông tin cá nhân</legend>
+        <legend>{t("account.personal")}</legend>
         <div className="form-grid">
-          <label htmlFor="name">Tên hiển thị</label>
+          <label htmlFor="name">{t("account.name")}</label>
           <input id="name" type="text" value={form.display_name}
                  onChange={(e) => setForm({ ...form, display_name: e.target.value })} />
 
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{t("account.email")}</label>
           <input id="email" type="email" value={form.email}
                  onChange={(e) => setForm({ ...form, email: e.target.value })} />
-          <div className="hint">Không bắt buộc. Dùng để gửi bản tin gợi ý hằng tuần sau này.</div>
+          <div className="hint">{t("account.emailHint")}</div>
 
-          <label htmlFor="orid">OpenReview ID</label>
+          <label htmlFor="orid">{t("account.orid")}</label>
           <input id="orid" type="text" value={form.openreview_id} placeholder="~Nguyen_Van_A1"
                  onChange={(e) => setForm({ ...form, openreview_id: e.target.value })} />
-          <div className="hint">
-            Lấy trong đường dẫn hồ sơ OpenReview của bạn, ví dụ openreview.net/profile?id=~Nguyen_Van_A1.
-            Hệ thống dùng ID này để tìm các bài bạn đã công khai.
-          </div>
+          <div className="hint">{t("account.oridHint")}</div>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Bài báo của bạn trên OpenReview</legend>
+        <legend>{t("account.myPapers")}</legend>
         <AuthoredTable openreviewId={me.data?.openreview_id ?? ""} rows={authored.data} loading={authored.loading}
                        error={authored.error} />
       </fieldset>
@@ -82,24 +80,24 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
       <PreferencesForm prefs={form.preferences} meta={meta} setPref={setPref} />
 
       <div className="savebar">
-        <button className="primary" onClick={save} disabled={saving}>{saving ? "Đang lưu..." : "Lưu thay đổi"}</button>
-        {savedAt && !saveError && <span className="muted small">Đã lưu lúc {savedAt}</span>}
+        <button className="primary" onClick={save} disabled={saving}>{saving ? t("account.saving") : t("account.save")}</button>
+        {savedAt && !saveError && <span className="muted small">{t("account.savedAt", { time: savedAt })}</span>}
         {saveError && <span className="small" style={{ color: "var(--danger)" }}>{saveError}</span>}
       </div>
 
-      <h2>Bài đã lưu</h2>
+      <h2>{t("account.saved")}</h2>
       {saved.data && saved.data.length === 0 && (
-        <p className="muted">Chưa có bài nào. Bấm "Lưu" ở một bài để thêm vào đây.</p>
+        <p className="muted">{t("account.savedEmpty")}</p>
       )}
       {saved.data && saved.data.length > 0 && (
         <table className="grid">
-          <thead><tr><th>Bài báo</th><th>Hội nghị</th><th>Kết quả</th></tr></thead>
+          <thead><tr><th>{t("paper.colPaper")}</th><th>{t("paper.venue")}</th><th>{t("paper.decision")}</th></tr></thead>
           <tbody>
             {saved.data.map((p) => (
               <tr key={p.id}>
                 <td><PaperLink paper={p} /></td>
                 <td style={{ whiteSpace: "nowrap" }}>{p.venue} {p.year}</td>
-                <td>{decisionLabel(p.decision)}</td>
+                <td>{decision(p.decision)}</td>
               </tr>
             ))}
           </tbody>
@@ -112,16 +110,17 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
 function AuthoredTable({ openreviewId, rows, loading, error }: {
   openreviewId: string; rows: AuthoredPaper[] | null; loading: boolean; error: string | null;
 }) {
+  const { t, authors, decision } = useI18n();
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   useEffect(() => {
     setConfirmed(Object.fromEntries((rows ?? []).map((r) => [r.paper.id, r.confirmed])));
   }, [rows]);
 
-  if (!openreviewId) return <p className="muted small">Nhập OpenReview ID rồi bấm "Lưu thay đổi" để tìm bài của bạn.</p>;
+  if (!openreviewId) return <p className="muted small">{t("account.needId")}</p>;
   if (error) return <p className="error">{error}</p>;
-  if (loading || !rows) return <p className="muted">Đang tìm bài...</p>;
+  if (loading || !rows) return <p className="muted">{t("account.searching")}</p>;
   if (rows.length === 0) {
-    return <p className="muted small">Không tìm thấy bài nào của {openreviewId} trong dữ liệu hiện có.</p>;
+    return <p className="muted small">{t("account.noneFound", { id: openreviewId })}</p>;
   }
 
   const toggle = async (id: string, value: boolean) => {
@@ -136,11 +135,14 @@ function AuthoredTable({ openreviewId, rows, loading, error }: {
   return (
     <>
       <p className="small muted" style={{ marginTop: 0 }}>
-        Tìm thấy {rows.length} bài. Bỏ đánh dấu những bài không phải của bạn; bài được đánh dấu sẽ dùng để dựng hồ sơ.
+        {t("account.found", { n: rows.length })}
       </p>
       <table className="grid">
         <thead>
-          <tr><th className="center">Của tôi</th><th>Bài báo</th><th>Hội nghị</th><th>Kết quả</th></tr>
+          <tr>
+            <th className="center">{t("account.mine")}</th><th>{t("paper.colPaper")}</th>
+            <th>{t("paper.venue")}</th><th>{t("paper.decision")}</th>
+          </tr>
         </thead>
         <tbody>
           {rows.map(({ paper }) => (
@@ -148,14 +150,14 @@ function AuthoredTable({ openreviewId, rows, loading, error }: {
               <td className="center">
                 <input type="checkbox" checked={confirmed[paper.id] ?? true}
                        onChange={(e) => toggle(paper.id, e.target.checked)}
-                       aria-label={`Bài ${paper.title} là của tôi`} />
+                       aria-label={t("account.mineAria", { title: paper.title })} />
               </td>
               <td>
                 <PaperLink paper={paper} />
-                <div className="small muted">{authorsShort(paper.authors, 5)}</div>
+                <div className="small muted">{authors(paper.authors, 5)}</div>
               </td>
               <td style={{ whiteSpace: "nowrap" }}>{paper.venue} {paper.year}</td>
-              <td>{decisionLabel(paper.decision)}</td>
+              <td>{decision(paper.decision)}</td>
             </tr>
           ))}
         </tbody>
@@ -168,6 +170,7 @@ function PreferencesForm({ prefs, meta, setPref }: {
   prefs: Preferences; meta: Meta | null;
   setPref: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void;
 }) {
+  const { t, int } = useI18n();
   const [areaFilter, setAreaFilter] = useState("");
   const areas = useMemo(() => {
     const f = areaFilter.trim().toLowerCase();
@@ -179,25 +182,25 @@ function PreferencesForm({ prefs, meta, setPref }: {
 
   return (
     <fieldset>
-      <legend>Sở thích</legend>
+      <legend>{t("account.prefs")}</legend>
       <div className="form-grid">
-        <label>Lĩnh vực quan tâm</label>
+        <label>{t("account.areas")}</label>
         <div>
-          <input type="search" placeholder="Lọc danh sách lĩnh vực" value={areaFilter}
+          <input type="search" placeholder={t("account.areaFilter")} value={areaFilter}
                  onChange={(e) => setAreaFilter(e.target.value)} style={{ width: "100%", marginBottom: 4 }} />
           <div className="checklist">
             {areas.map((a) => (
               <label key={a.value}>
                 <input type="checkbox" checked={prefs.areas.includes(a.value)}
                        onChange={(e) => setPref("areas", toggleIn(prefs.areas, a.value, e.target.checked))} />{" "}
-                {a.label} <span className="count">({a.count.toLocaleString("vi-VN")})</span>
+                {a.label} <span className="count">({int(a.count)})</span>
               </label>
             ))}
           </div>
-          <div className="small muted">Đã chọn {prefs.areas.length} lĩnh vực.</div>
+          <div className="small muted">{t("account.areasChosen", { n: prefs.areas.length })}</div>
         </div>
 
-        <label>Hội nghị</label>
+        <label>{t("account.venues")}</label>
         <div>
           {meta?.venues.map((v) => (
             <label key={v.value} style={{ marginRight: 16 }}>
@@ -207,49 +210,49 @@ function PreferencesForm({ prefs, meta, setPref }: {
             </label>
           ))}
         </div>
-        <div className="hint">Không chọn hội nghị nào nghĩa là lấy tất cả.</div>
+        <div className="hint">{t("account.venuesHint")}</div>
 
-        <label htmlFor="kw">Từ khoá</label>
-        <input id="kw" type="text" value={prefs.keywords.join(", ")} placeholder="ví dụ: diffusion, graph neural network"
+        <label htmlFor="kw">{t("account.keywords")}</label>
+        <input id="kw" type="text" value={prefs.keywords.join(", ")} placeholder={t("account.keywordsPh")}
                onChange={(e) => setPref("keywords", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} />
-        <div className="hint">Cách nhau bằng dấu phẩy.</div>
+        <div className="hint">{t("account.keywordsHint")}</div>
 
-        <label htmlFor="year">Chỉ lấy bài từ năm</label>
+        <label htmlFor="year">{t("account.yearFrom")}</label>
         <select id="year" value={prefs.year_from ?? ""}
                 onChange={(e) => setPref("year_from", e.target.value ? Number(e.target.value) : null)}
                 style={{ width: 140 }}>
-          <option value="">Không giới hạn</option>
+          <option value="">{t("account.noLimit")}</option>
           {meta?.years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
 
-        <label>Tuỳ chọn</label>
+        <label>{t("account.options")}</label>
         <div>
           <label style={{ display: "block" }}>
             <input type="checkbox" checked={prefs.include_rejected}
                    onChange={(e) => setPref("include_rejected", e.target.checked)} />{" "}
-            Gợi ý cả bài bị từ chối (vẫn có review công khai)
+            {t("account.includeRejected")}
           </label>
           <label style={{ display: "block" }}>
             <input type="checkbox" checked={prefs.only_with_code}
                    onChange={(e) => setPref("only_with_code", e.target.checked)} />{" "}
-            Chỉ gợi ý bài có mã nguồn
+            {t("account.onlyCode")}
           </label>
         </div>
 
-        <label>Độ mới</label>
+        <label>{t("account.freshness")}</label>
         <div className="slider">
-          <span>Kinh điển</span>
+          <span>{t("account.classic")}</span>
           <input type="range" min={0} max={1} step={0.1} value={prefs.freshness}
-                 onChange={(e) => setPref("freshness", Number(e.target.value))} aria-label="Độ mới" />
-          <span>Mới nhất</span>
+                 onChange={(e) => setPref("freshness", Number(e.target.value))} aria-label={t("account.freshness")} />
+          <span>{t("account.newest")}</span>
         </div>
 
-        <label>Độ đa dạng</label>
+        <label>{t("account.diversity")}</label>
         <div className="slider">
-          <span>Sát chủ đề</span>
+          <span>{t("account.focused")}</span>
           <input type="range" min={0} max={1} step={0.1} value={prefs.diversity}
-                 onChange={(e) => setPref("diversity", Number(e.target.value))} aria-label="Độ đa dạng" />
-          <span>Đa dạng</span>
+                 onChange={(e) => setPref("diversity", Number(e.target.value))} aria-label={t("account.diversity")} />
+          <span>{t("account.diverse")}</span>
         </div>
       </div>
     </fieldset>

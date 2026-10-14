@@ -144,7 +144,7 @@ def parse_submission(note: dict) -> tuple[dict, list[dict]]:
 
 # ---------------------------------------------------------------- .bbl trong source arXiv
 
-_BIBITEM = re.compile(r"\\bibitem\s*(?:\[(?:[^\[\]]|\[[^\]]*\])*\])?\s*\{[^}]*\}")
+_BIBITEM = re.compile(r"\\bibitem\s*(?:\[(?:[^\[\]]|\[[^\]]*\])*\])?\s*\{([^}]*)\}")   # nhóm 1: khoá
 _ACCENT_SYM = re.compile(r"\\[\"'`^~=.]\s*\{?\\?([a-zA-Z])\}?")
 _ACCENT_LETTER = re.compile(r"\\[uvHcdbtrk]\{\\?([a-zA-Z])\}")
 _COMMAND = re.compile(r"\\[a-zA-Z]+\*?")
@@ -180,6 +180,49 @@ def _biblatex_field(entry: str, name: str) -> str | None:
     return entry[start:k - 1]
 
 
+_BIB_ENTRY = re.compile(r"@\s*([A-Za-z]+)\s*[{(]\s*([^,\s]+)\s*,")
+_BIB_FIELD = re.compile(r"([A-Za-z_-]+)\s*=\s*")
+
+
+def _bib_value(entry: str, k: int) -> tuple[str, int]:
+    """Đọc giá trị một trường BibTeX bắt đầu ở vị trí k: {…} lồng nhau, "…" hoặc số / macro."""
+    if k < len(entry) and entry[k] == "{":
+        depth, j = 1, k + 1
+        while j < len(entry) and depth:
+            depth += {"{": 1, "}": -1}.get(entry[j], 0)
+            j += 1
+        return entry[k + 1:j - 1], j
+    if k < len(entry) and entry[k] == '"':
+        j = k + 1
+        while j < len(entry) and not (entry[j] == '"' and entry[j - 1] != "\\"):
+            j += 1
+        return entry[k + 1:j], j + 1
+    m = re.match(r"[^,}\s]*", entry[k:])
+    return m.group(0), k + m.end()
+
+
+def parse_bib(text: str) -> list[dict]:
+    """Tách file .bib (khi bài không kèm .bbl) thành các mục {key, title, arxiv_id}; bỏ @string/@comment/@preamble."""
+    items = []
+    starts = list(_BIB_ENTRY.finditer(text))
+    for m, nxt in zip(starts, starts[1:] + [None]):
+        if m.group(1).lower() in ("string", "comment", "preamble"):
+            continue
+        entry = text[m.end():nxt.start() if nxt else len(text)]
+        fields, k = {}, 0
+        while (f := _BIB_FIELD.search(entry, k)) is not None:
+            value, k = _bib_value(entry, f.end())
+            fields.setdefault(f.group(1).lower(), value)
+        eprint = (fields.get("eprint") or "").strip()
+        title = fields.get("title")
+        items.append({
+            "key": m.group(2),
+            "title": latex_to_text(title).rstrip(" .") if title else None,
+            "arxiv_id": eprint if _ARXIV_IN_TEXT.fullmatch(eprint) else _arxiv_id_in(entry),
+        })
+    return items
+
+
 def parse_bbl(text: str) -> list[dict]:
     """Tách danh sách reference từ .bbl: natbib/thebibliography (\\bibitem ... \\newblock) hoặc biblatex (\\entry)."""
     items = []
@@ -189,12 +232,14 @@ def parse_bbl(text: str) -> list[dict]:
             title = _biblatex_field(entry, "title")
             eprint = _biblatex_field(entry, "eprint") or ""
             items.append({
+                "key": entry.split("}", 1)[0].strip(),
                 "title": latex_to_text(title) if title else None,
                 "arxiv_id": eprint if _ARXIV_IN_TEXT.fullmatch(eprint) else _arxiv_id_in(entry),
             })
         return items
 
-    for raw in _BIBITEM.split(text)[1:]:
+    parts = _BIBITEM.split(text)          # [phần đầu, khoá 1, nội dung 1, khoá 2, nội dung 2, ...]
+    for key, raw in zip(parts[1::2], parts[2::2]):
         raw = raw.split("\\end{thebibliography}")[0]
         blocks = raw.split("\\newblock")
         title = None
@@ -206,5 +251,5 @@ def parse_bbl(text: str) -> list[dict]:
             if m:
                 title = latex_to_text(m.group(1))
         title = (title or "").rstrip(" .,;:") or None
-        items.append({"title": title, "arxiv_id": _arxiv_id_in(raw)})
+        items.append({"key": key.strip(), "title": title, "arxiv_id": _arxiv_id_in(raw)})
     return items

@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../api";
+import { useI18n } from "../prefs";
 
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ready" }
-  | { kind: "error"; message: string; rateLimited: boolean };
+  | { kind: "error"; rateLimitedMin: number | null };
 
 /** PDF nhúng trong trang. Chỉ tải khi người dùng bấm (OpenReview giới hạn số lượt tải mỗi giờ). */
 export function PdfViewer({ paperId, cached, openreviewPdf }: {
   paperId: string; cached: boolean; openreviewPdf: string;
 }) {
+  const { t } = useI18n();
   const [state, setState] = useState<State>(cached ? { kind: "ready" } : { kind: "idle" });
   useEffect(() => setState(cached ? { kind: "ready" } : { kind: "idle" }), [paperId, cached]);
 
@@ -20,32 +22,31 @@ export function PdfViewer({ paperId, cached, openreviewPdf }: {
       await api.preparePdf(paperId);
       setState({ kind: "ready" });
     } catch (e) {
-      const err = e as Error;
-      setState({ kind: "error", message: err.message, rateLimited: err instanceof ApiError && err.status === 429 });
+      const limited = e instanceof ApiError && e.status === 429;
+      const minutes = limited ? Math.ceil((e.retryAfterS ?? 3600) / 60) : null;
+      setState({ kind: "error", rateLimitedMin: minutes });
     }
   };
 
   if (state.kind === "ready") {
-    return (
-      <iframe className="pdf-frame" src={api.pdfUrl(paperId)} title="Bản PDF của bài báo" />
-    );
+    return <iframe className="pdf-frame" src={api.pdfUrl(paperId)} title={t("pdf.frameTitle")} />;
   }
 
   return (
     <div className="pdf-placeholder">
-      <p style={{ fontFamily: "var(--font-text)", fontSize: 18, color: "var(--text)" }}>Bản PDF</p>
+      <p className="pdf-placeholder-title">{t("pdf.title")}</p>
       {state.kind === "error" ? (
-        <p className={state.rateLimited ? "" : "error"}>{state.message}</p>
+        state.rateLimitedMin !== null
+          ? <p>{t("pdf.rateLimited", { m: state.rateLimitedMin })}</p>
+          : <p className="error">{t("pdf.unavailable")}</p>
       ) : (
-        <p className="muted">
-          PDF chưa được tải về máy chủ. OpenReview chỉ cho tải khoảng 26 bài mỗi giờ, nên PDF được tải khi bạn cần.
-        </p>
+        <p className="muted">{t("pdf.notCached")}</p>
       )}
       <p>
         <button className="primary" onClick={load} disabled={state.kind === "loading"}>
-          {state.kind === "loading" ? "Đang tải PDF..." : "Xem PDF tại đây"}
+          {state.kind === "loading" ? t("pdf.loading") : t("pdf.load")}
         </button>{" "}
-        hoặc <a href={openreviewPdf} target="_blank" rel="noreferrer">mở trên OpenReview</a>
+        {t("pdf.or")} <a href={openreviewPdf} target="_blank" rel="noreferrer">{t("pdf.openOnOR")}</a>
       </p>
     </div>
   );

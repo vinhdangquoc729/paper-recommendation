@@ -122,6 +122,38 @@ CREATE TABLE bbl_refs (
     match_by      TEXT                    -- arxiv / title / NULL
 );
 
+-- Reference giữa các bài OpenReview (lấy từ .bbl arXiv), làm ground truth cho đánh giá
+DROP TABLE IF EXISTS or_arxiv;
+CREATE TABLE or_arxiv (
+    forum_id   TEXT PRIMARY KEY,
+    arxiv_id   TEXT,
+    source     TEXT                       -- s2_paper (ghép S2 theo venue) / s2 / arxiv (tra theo tiêu đề)
+);
+DROP TABLE IF EXISTS or_refs;
+CREATE TABLE or_refs (
+    citing_forum  TEXT,                   -- or_submissions.forum_id của bài trích
+    idx           INTEGER,
+    ref_key       TEXT,                   -- khoá trong \cite
+    title         TEXT,
+    title_norm    TEXT,
+    ref_arxiv_id  TEXT,
+    cited_forum   TEXT,                   -- bài OpenReview được trích nếu khớp được, NULL nếu ngoài corpus
+    match_by      TEXT,                   -- arxiv / title / NULL
+    -- đặc trưng của lần trích (spec 5.2), từ các lệnh \cite trong .tex; NULL nếu không đọc được .tex
+    has_cite_info INTEGER,                -- bài trích có đọc được .tex không
+    n_mentions    INTEGER,                -- số lần \cite reference này
+    n_sections    INTEGER,                -- số section khác nhau có nhắc
+    in_intro      INTEGER,
+    in_related    INTEGER,
+    in_method     INTEGER,
+    in_experiment INTEGER,
+    appendix_only INTEGER,
+    only_in_list  INTEGER,                -- mọi lần nhắc đều trong \cite có >= 4 khoá
+    min_list_size INTEGER
+);
+
 CREATE INDEX idx_citations_citing ON citations(citing_id);
 CREATE INDEX idx_citations_cited ON citations(cited_id);
 CREATE INDEX idx_pa_author ON paper_authors(author_id);
+CREATE INDEX idx_or_refs_citing ON or_refs(citing_forum);
+CREATE INDEX idx_or_refs_cited ON or_refs(cited_forum);

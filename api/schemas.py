@@ -6,6 +6,16 @@ from pydantic import BaseModel, Field
 FeedbackAction = Literal["relevant", "not_relevant", "already_read", "saved", "unsaved", "clicked"]
 
 
+class Reason(BaseModel):
+    """Lý do "Vì sao gợi ý" dạng mã + tham số; frontend dịch theo ngôn ngữ đang chọn.
+
+    code: area_match {area} / keyword_match {keywords} / strong_decision {decision, venue, year} /
+          high_review / similar_content / same_area
+    """
+    code: str
+    params: dict[str, str | int | float] = {}
+
+
 class PaperSummary(BaseModel):
     id: str
     title: str
@@ -21,7 +31,7 @@ class PaperSummary(BaseModel):
     rating_z: float | None         # điểm review chuẩn hoá theo venue-năm
     quality: float | None          # q_p trong [0, 1]
     first_seen: str | None         # ngày bài công khai sớm nhất
-    reasons: list[str] = []        # "Vì sao gợi ý bài này"
+    reasons: list[Reason] = []     # "Vì sao gợi ý bài này"
     score: float | None = None
     saved: bool = False
     feedback: FeedbackAction | None = None

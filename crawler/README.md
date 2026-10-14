@@ -16,6 +16,7 @@ Tách "cào" và "load" để: (1) không bao giờ phải cào lại khi sửa 
 | `s2-refs` | S2 `/paper/batch` | danh sách reference (paperId, năm) | `raw/s2/references.jsonl` (resume) |
 | `s2-edges --sample N` | S2 `/paper/{id}/references` | `intents`, `isInfluential`, `contexts` cho N bài | `raw/s2/edges_sample.jsonl` (resume) |
 | `openreview` | OpenReview API v1/v2 (cần đăng nhập) | submission kể cả reject, review, decision | `raw/openreview/{venue}_{edition}.jsonl.gz` |
+| `eval-refs --t T --authors N` | arXiv e-print (source LaTeX) | reference cho bài sau T của N tác giả lấy mẫu: danh sách reference (.bbl, hoặc .bib nếu không có .bbl) và từng lần trích dẫn trong .tex | `raw/eval/targets_*.jsonl`, `raw/arxiv/title_lookup.jsonl`, `raw/arxiv/bbl.jsonl.gz` |
 
 Venue và edition khai báo ở [venues.py](venues.py).
 
@@ -48,3 +49,23 @@ Xem [schema.sql](schema.sql). Khoá chính của bài là S2 `paperId`; bài Ope
   - ICML: chỉ bài accept; 2023–2024 không có review, 2025+ có (`overall_recommendation`).
   - TMLR: có review nhưng **không có điểm số** (thiết kế của TMLR); bài reject giữ ẩn danh.
 - Submission dồn cục theo đợt: 64,5% số bài rơi vào 5 tuần (ngày mở submission của ICLR/ICML).
+
+## Reference từ source LaTeX (cho V3 và cho đánh giá)
+
+OpenReview không có reference. Lệnh `eval-refs` lấy reference từ source LaTeX trên arXiv:
+
+1. Chọn mẫu tác giả đủ điều kiện ở mốc T (>= 2 bài trước T, >= 1 bài sau T) và các bài sau T của họ
+   ([eval_targets.py](eval_targets.py)).
+2. Tìm arXiv ID theo tiêu đề: S2 `/paper/search/match` rồi API arXiv, chấp nhận khi tiêu đề giống >= 95%
+   ([arxiv_ids.py](arxiv_ids.py)).
+3. Tải gói e-print, lấy danh sách reference từ .bbl (hoặc các mục .bib được trích nếu bài chỉ nộp .bib),
+   và đọc các lệnh cite trong .tex: khoá, section, có trong phụ lục không, đoạn văn quanh nó ([latex.py](latex.py)).
+4. `load` dựng `or_refs`: mỗi reference ghép về bài OpenReview (theo arXiv ID, rồi tiêu đề) kèm đặc trưng
+   trích dẫn của spec mục 5.2: `n_mentions`, `n_sections`, `in_intro/related/method/experiment`,
+   `appendix_only`, `only_in_list` (chỉ nằm trong cite có >= 4 khoá).
+
+Crawler không dừng vì lỗi hay giới hạn: 429/503 thì chờ theo Retry-After, lỗi tạm thời được ghi lại và thử lại
+(tối đa 3 vòng mỗi lần chạy, chạy lại lệnh thì tiếp tục từ chỗ dở).
+
+Hạn chế: chỉ bài có trên arXiv mới có reference (khoảng 2/3 số bài sau T); section đặt tên tự do
+("Do We Need Adam?") không phân loại được nên `in_method` / `in_experiment` có thể thiếu.

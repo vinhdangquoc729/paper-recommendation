@@ -40,6 +40,7 @@ def make_client() -> ApiClient:
         min_interval=1.05 if key else 1.5,
         headers={"x-api-key": key} if key else None,
         max_retries=12,
+        max_retry_after=None,   # crawler chạy nền: server bắt chờ bao lâu thì chờ bấy lâu
     )
 
 

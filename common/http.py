@@ -8,7 +8,7 @@ import requests
 log = logging.getLogger(__name__)
 
 RETRY_STATUS = {429, 500, 502, 503, 504}
-MAX_RETRY_AFTER = 300  # giây; server bắt chờ lâu hơn thì coi là lỗi
+MAX_RETRY_AFTER = 300  # giây; mặc định: server bắt chờ lâu hơn thì báo lỗi (hợp với API phục vụ giao diện)
 
 
 class ApiError(RuntimeError):
@@ -22,10 +22,12 @@ class ApiClient:
     """Bọc requests.Session, đảm bảo cách nhau ít nhất `min_interval` giây giữa hai request."""
 
     def __init__(self, base_url: str, min_interval: float = 1.0, headers: dict | None = None,
-                 max_retries: int = 8, timeout: float = 120):
+                 max_retries: int = 8, timeout: float = 120, max_retry_after: float | None = MAX_RETRY_AFTER):
+        """max_retry_after=None: luôn chờ theo Retry-After của server dù lâu bao nhiêu (dùng cho crawler chạy nền)."""
         self.base_url = base_url.rstrip("/")
         self.min_interval = min_interval
         self.max_retries = max_retries
+        self.max_retry_after = max_retry_after
         self.timeout = timeout
         self.session = requests.Session()
         self.session.headers["User-Agent"] = "paper-recsys-student-project/0.1"
@@ -61,7 +63,7 @@ class ApiClient:
                 break
             delay = min(60.0, 2.0 ** attempt) + random.uniform(0, 1)
             if retry_after and retry_after.isdigit():
-                if float(retry_after) > MAX_RETRY_AFTER:
+                if self.max_retry_after is not None and float(retry_after) > self.max_retry_after:
                     # hết quota theo giờ (vd. OpenReview 500 request): báo lỗi ngay, đừng ngủ im lặng
                     raise ApiError(status, f"Retry-After={retry_after}s. {body}", url)
                 delay = max(delay, float(retry_after))

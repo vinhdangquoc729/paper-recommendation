@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Paper Recommender</title>
+    <script>
+      // Áp giao diện và ngôn ngữ đã chọn trước khi React chạy, tránh nháy trắng khi dùng dark mode
+      try {
+        var theme = localStorage.getItem("paperrec.theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+        var lang = localStorage.getItem("paperrec.lang");
+        if (lang === "vi" || lang === "en") document.documentElement.lang = lang;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { authorsShort } from "../format";
+import { useI18n } from "../prefs";
 import type { PaperSummary } from "../types";
 import { PaperMeta } from "./PaperMeta";
 
@@ -11,6 +11,7 @@ const CLOSE_DELAY_MS = 150;   // đủ thời gian để di chuột từ tên b�
 export function PaperLink({ paper, className, children }: {
   paper: PaperSummary; className?: string; children?: ReactNode;
 }) {
+  const { t, authors } = useI18n();
   const [open, setOpen] = useState(false);
   const [alignRight, setAlignRight] = useState(false);
   const timer = useRef<number>();
@@ -47,14 +48,14 @@ export function PaperLink({ paper, className, children }: {
       {open && (
         <span id={tipId} role="tooltip" className={`peek ${alignRight ? "right" : ""}`}>
           <span className="peek-title">{paper.title}</span>
-          <span className="peek-authors">{authorsShort(paper.authors, 8)}</span>
+          <span className="peek-authors">{authors(paper.authors, 8)}</span>
           <PaperMeta paper={paper} />
           {paper.abstract_snippet ? (
             <span className="peek-abstract">{paper.abstract_snippet}</span>
           ) : (
-            <span className="peek-abstract muted">Không có tóm tắt.</span>
+            <span className="peek-abstract muted">{t("peek.noAbstract")}</span>
           )}
-          <span className="peek-hint">Bấm vào tên bài để đọc đầy đủ</span>
+          <span className="peek-hint">{t("peek.hint")}</span>
         </span>
       )}
     </span>

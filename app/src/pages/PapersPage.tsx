@@ -2,22 +2,26 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { PaperRow } from "../components/PaperRow";
+import type { MessageKey } from "../i18n";
+import { useI18n } from "../prefs";
 import type { Meta, PaperFilters } from "../types";
 import { useAsync } from "../useAsync";
 
 const PAGE_SIZE = 20;
 
-const DECISION_OPTIONS = [
-  { value: "", label: "Tất cả" },
-  { value: "accepted", label: "Đã được nhận" },
-  { value: "accept_oral", label: "Oral" },
-  { value: "accept_spotlight", label: "Spotlight" },
-  { value: "accept_poster", label: "Poster" },
-  { value: "reject", label: "Reject" },
+// label: khoá i18n, hoặc thuật ngữ hội nghị giữ nguyên ở mọi ngôn ngữ
+const DECISION_OPTIONS: { value: string; label: MessageKey | string; i18n: boolean }[] = [
+  { value: "", label: "papers.all", i18n: true },
+  { value: "accepted", label: "papers.accepted", i18n: true },
+  { value: "accept_oral", label: "Oral", i18n: false },
+  { value: "accept_spotlight", label: "Spotlight", i18n: false },
+  { value: "accept_poster", label: "Poster", i18n: false },
+  { value: "reject", label: "Reject", i18n: false },
 ];
 
 /** Màn chính: ô tìm kiếm trống thì hiện gợi ý theo hồ sơ, có từ khoá thì hiện kết quả tìm kiếm. */
 export function PapersPage({ meta }: { meta: Meta | null }) {
+  const { t, int } = useI18n();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const page = Math.max(1, Number(params.get("page") ?? 1));
@@ -61,37 +65,39 @@ export function PapersPage({ meta }: { meta: Meta | null }) {
           type="search"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder="Nhập chủ đề, phương pháp hoặc tên bài. Để trống để xem gợi ý dành cho bạn."
-          aria-label="Từ khoá tìm kiếm"
+          placeholder={t("papers.placeholder")}
+          aria-label={t("papers.searchAria")}
         />
-        <button type="submit" className="primary">Tìm kiếm</button>
+        <button type="submit" className="primary">{t("papers.search")}</button>
         {isSearch && (
-          <button type="button" onClick={() => update({ q: null })}>Về gợi ý</button>
+          <button type="button" onClick={() => update({ q: null })}>{t("papers.backToRecs")}</button>
         )}
       </form>
 
       <div className="columns">
         <aside className="sidebar">
           <fieldset>
-            <legend>Bộ lọc</legend>
+            <legend>{t("papers.filters")}</legend>
             <label>
-              Hội nghị
+              {t("papers.venue")}
               <select value={filters.venue ?? ""} onChange={(e) => update({ venue: e.target.value || null })}>
-                <option value="">Tất cả</option>
+                <option value="">{t("papers.all")}</option>
                 {meta?.venues.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
               </select>
             </label>
             <label>
-              Năm
+              {t("papers.year")}
               <select value={filters.year ?? ""} onChange={(e) => update({ year: e.target.value || null })}>
-                <option value="">Tất cả</option>
+                <option value="">{t("papers.all")}</option>
                 {meta?.years.slice().reverse().map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
             </label>
             <label>
-              Kết quả
+              {t("papers.decision")}
               <select value={filters.decision ?? ""} onChange={(e) => update({ decision: e.target.value || null })}>
-                {DECISION_OPTIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                {DECISION_OPTIONS.map((d) => (
+                  <option key={d.value} value={d.value}>{d.i18n ? t(d.label as MessageKey) : d.label}</option>
+                ))}
               </select>
             </label>
             <label>
@@ -100,26 +106,26 @@ export function PapersPage({ meta }: { meta: Meta | null }) {
                 checked={!!filters.has_code}
                 onChange={(e) => update({ code: e.target.checked ? "1" : null })}
               />{" "}
-              Chỉ bài có mã nguồn
+              {t("papers.onlyCode")}
             </label>
           </fieldset>
           {!isSearch && (
             <p className="small muted">
-              Gợi ý dựa trên hồ sơ và sở thích trong trang <Link to="/account">Tài khoản</Link>.
+              {t("papers.hintBefore")} <Link to="/account">{t("nav.account")}</Link>{t("papers.hintAfter")}
             </p>
           )}
         </aside>
 
         <section>
           <div className="list-head">
-            <h1>{isSearch ? `Kết quả cho "${q}"` : "Gợi ý cho bạn"}</h1>
-            {data && <span className="muted">{data.total.toLocaleString("vi-VN")} bài</span>}
+            <h1>{isSearch ? t("papers.titleSearch", { q }) : t("papers.titleRecs")}</h1>
+            {data && <span className="muted">{t("papers.count", { n: int(data.total) })}</span>}
           </div>
 
           {error && <p className="error">{error}</p>}
-          {loading && !data && <p className="muted">Đang tải...</p>}
+          {loading && !data && <p className="muted">{t("common.loading")}</p>}
           {data && data.items.length === 0 && (
-            <p className="muted">Không có bài nào khớp. Thử bỏ bớt bộ lọc hoặc đổi từ khoá.</p>
+            <p className="muted">{t("papers.empty")}</p>
           )}
 
           {data && (
@@ -132,9 +138,9 @@ export function PapersPage({ meta }: { meta: Meta | null }) {
 
           {data && data.total > PAGE_SIZE && (
             <div className="pager">
-              <button disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>Trang trước</button>
-              <span>Trang {page} / {totalPages}</span>
-              <button disabled={page >= totalPages} onClick={() => update({ page: String(page + 1) })}>Trang sau</button>
+              <button disabled={page <= 1} onClick={() => update({ page: String(page - 1) })}>{t("papers.prev")}</button>
+              <span>{t("papers.pageOf", { p: page, n: totalPages })}</span>
+              <button disabled={page >= totalPages} onClick={() => update({ page: String(page + 1) })}>{t("papers.next")}</button>
             </div>
           )}
         </section>

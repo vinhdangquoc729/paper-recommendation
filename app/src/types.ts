@@ -2,6 +2,12 @@
 
 export type FeedbackAction = "relevant" | "not_relevant" | "already_read" | "saved" | "unsaved" | "clicked";
 
+/** Lý do gợi ý dạng mã + tham số; dịch bằng khoá "reason.<code>" trong i18n.ts. */
+export interface Reason {
+  code: string;
+  params: Record<string, string | number>;
+}
+
 export interface PaperSummary {
   id: string;
   title: string;
@@ -17,7 +23,7 @@ export interface PaperSummary {
   rating_z: number | null;
   quality: number | null;
   first_seen: string | null;
-  reasons: string[];
+  reasons: Reason[];
   score: number | null;
   saved: boolean;
   feedback: FeedbackAction | null;

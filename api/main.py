@@ -132,9 +132,9 @@ def related(paper_id: str, limit: int = Query(10, ge=1, le=50)):
     if row is None:
         raise HTTPException(404, "Không tìm thấy bài")
     pairs = cat.similar_by_embedding(paper_id, limit * 2)
-    reason = "Nội dung gần với bài đang đọc"
+    reason = {"code": "similar_content"}
     if pairs is None:
-        pairs, reason = placeholder.related_fallback(cat.df, row, limit), "Cùng lĩnh vực với bài đang đọc"
+        pairs, reason = placeholder.related_fallback(cat.df, row, limit), {"code": "same_area"}
     out = []
     for pid, sim in pairs:
         r = cat.get(pid)
