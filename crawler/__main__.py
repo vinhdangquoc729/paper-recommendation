@@ -11,6 +11,9 @@
     python -m crawler eval-refs --t 2025-01-01 --authors 500
                                               # reference (.bbl arXiv) cho bài sau T của một mẫu tác giả,
                                               # làm ground truth cho đánh giá; cần chạy load trước
+    python -m crawler corpus-refs             # reference (.bbl arXiv) cho mọi bài đã có arXiv ID
+    python -m crawler corpus-refs --shard 0/3 # chạy song song: 3 terminal với --shard 0/3, 1/3, 2/3
+                                              # (khoảng 23.000 bài, 1 đến 1,5 ngày; ngắt và chạy lại được)
     python -m crawler load                    # dựng data/corpus.sqlite từ data/raw/
     python -m crawler all                     # s2-papers -> s2-refs -> s2-edges -> load
 
@@ -68,7 +71,7 @@ def known_arxiv_ids(conn) -> dict[str, str]:
     return known
 
 
-def run_eval_refs(t: str, n_authors: int, seed: int, interval: float) -> None:
+def run_eval_refs(t: str, n_authors: int, seed: int, interval: float, src_interval: float) -> None:
     conn = connect()
     _, target = eval_targets.select_targets(conn, t, n_authors, seed)
     known = known_arxiv_ids(conn)
@@ -82,21 +85,58 @@ def run_eval_refs(t: str, n_authors: int, seed: int, interval: float) -> None:
     ids = [next(known[f] for f in r.forums if f in known) for r in target.itertuples()
            if any(f in known for f in r.forums)]
     log.info("[eval] %d / %d bài có arXiv ID, tải .bbl", len(ids), len(target))
-    arxiv.crawl_bbl(ids, interval)
+    arxiv.crawl_bbl(ids, src_interval)
+
+
+def run_corpus_refs(t: str, n_authors: int, seed: int, src_interval: float, limit: int | None,
+                    shard: tuple[int, int] | None = None) -> None:
+    """Giai đoạn 1: tải source LaTeX cho mọi bài trong corpus đã có arXiv ID (không tra thêm theo tiêu đề).
+
+    Bài thuộc tập đánh giá (eval-refs cùng T / số tác giả / seed) được tải trước, sau đó bài mới trước bài cũ.
+    """
+    conn = connect()
+    known = known_arxiv_ids(conn)
+    _, target = eval_targets.select_targets(conn, t, n_authors, seed)
+    first = {f for fs in target.forums for f in fs}
+    rows = conn.execute("SELECT forum_id, edition FROM or_submissions").fetchall()
+    conn.close()
+    rows = [(f, y) for f, y in rows if f in known]
+    rows.sort(key=lambda r: (r[0] not in first, -(r[1] or 0)))
+    ids = list(dict.fromkeys(known[f] for f, _ in rows))   # các lần nộp lại có thể chung một arXiv ID
+    n_first = len({known[f] for f, _ in rows if f in first})
+    log.info("[corpus-refs] %d bài có arXiv ID (%d arXiv ID khác nhau), %d thuộc tập đánh giá được tải trước",
+             len(rows), len(ids), n_first)
+    arxiv.crawl_bbl(ids[:limit], src_interval, shard=shard)
+
+
+def parse_shard(text: str) -> tuple[int, int]:
+    try:
+        i, n = (int(x) for x in text.split("/"))
+    except ValueError:
+        raise argparse.ArgumentTypeError("dạng I/N, ví dụ 0/3") from None
+    if not 0 <= i < n:
+        raise argparse.ArgumentTypeError("cần 0 <= I < N")
+    return i, n
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m crawler")
     parser.add_argument("command", choices=["s2-papers", "s2-refs", "s2-edges", "openreview", "openreview-check",
-                                            "arxiv-refs", "eval-refs", "load", "all"])
+                                            "arxiv-refs", "eval-refs", "corpus-refs", "load", "all"])
     parser.add_argument("--venues", nargs="+", default=list(VENUES), choices=list(VENUES))
     parser.add_argument("--editions", nargs="+", type=int, help="chỉ cho lệnh openreview")
     parser.add_argument("--skip-existing", action="store_true", help="openreview: bỏ qua nguồn đã có cache")
     parser.add_argument("--batch-size", type=int, default=100)
     parser.add_argument("--sample", type=int, default=300, help="số bài cho s2-edges")
-    parser.add_argument("--limit", type=int, help="arxiv-refs: số bài bị ẩn tối đa (mặc định: tất cả)")
+    parser.add_argument("--limit", type=int,
+                        help="arxiv-refs / corpus-refs: số bài tối đa (mặc định: tất cả)")
     parser.add_argument("--validate", type=int, default=0, help="arxiv-refs: số bài S2 có refs để kiểm tra parser")
-    parser.add_argument("--interval", type=float, default=3.0, help="arxiv-refs: giây giữa hai request")
+    parser.add_argument("--interval", type=float, default=0.1,
+                        help="giây giữa hai request tới API tìm kiếm arXiv (tra arXiv ID theo tiêu đề)")
+    parser.add_argument("--src-interval", type=float, default=arxiv.SRC_MIN_INTERVAL,
+                        help="giây giữa hai request tải source LaTeX (arxiv-refs / eval-refs / corpus-refs)")
+    parser.add_argument("--shard", type=parse_shard, metavar="I/N",
+                        help="corpus-refs: chỉ tải phần I trong N phần (0 <= I < N), để chạy N tiến trình song song")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--t", default="2025-01-01", help="eval-refs: mốc thời gian T (YYYY-MM-DD)")
     parser.add_argument("--authors", type=int, default=500, help="eval-refs: số tác giả lấy mẫu")
@@ -129,9 +169,11 @@ def main() -> None:
                 except Exception:
                     log.exception("openreview %s %s: lỗi, chuyển sang nguồn tiếp theo", key, edition)
     if cmd == "arxiv-refs":
-        arxiv.crawl_bbl(arxiv_targets(args.venues, args.limit, args.validate, args.seed), args.interval)
+        arxiv.crawl_bbl(arxiv_targets(args.venues, args.limit, args.validate, args.seed), args.src_interval)
     if cmd == "eval-refs":
-        run_eval_refs(args.t, args.authors, args.seed, args.interval)
+        run_eval_refs(args.t, args.authors, args.seed, args.interval, args.src_interval)
+    if cmd == "corpus-refs":
+        run_corpus_refs(args.t, args.authors, args.seed, args.src_interval, args.limit, args.shard)
     if cmd in ("load", "all"):
         build_db()
 

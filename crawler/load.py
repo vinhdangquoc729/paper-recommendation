@@ -2,6 +2,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Iterator
 
 from common.db import connect
 from common.jsonl import read_jsonl
@@ -141,8 +142,8 @@ def load_arxiv_bbl(conn, min_title_len: int = 20) -> None:
         if tn and len(tn) >= min_title_len:   # tiêu đề quá ngắn dễ khớp nhầm
             by_title.setdefault(tn, pid)
 
-    papers, refs = [], []
-    for r in _latest_bbl().values():
+    papers, refs = [], _BatchInserter(conn, "bbl_refs")
+    for _, r in _latest_bbl():
         citing = by_arxiv.get(r["arxiv_id"])
         # nhiều file .bbl (bài chính + phụ lục) có thể lặp reference
         items = _unique_refs(r) if r["status"] in REF_OK else []
@@ -153,19 +154,45 @@ def load_arxiv_bbl(conn, min_title_len: int = 20) -> None:
             cited, how = by_arxiv.get(it["arxiv_id"]), "arxiv"
             if cited is None:
                 cited, how = by_title.get(tn), "title"
-            refs.append({"citing_id": citing, "idx": i, "title": it["title"], "title_norm": tn,
-                         "ref_arxiv_id": it["arxiv_id"], "cited_id": cited, "match_by": how if cited else None})
+            refs.add({"citing_id": citing, "idx": i, "title": it["title"], "title_norm": tn,
+                      "ref_arxiv_id": it["arxiv_id"], "cited_id": cited, "match_by": how if cited else None})
     _insert(conn, "bbl_papers", papers)
-    _insert(conn, "bbl_refs", refs)
-    log.info("[load] arxiv bbl: %d bài, %d reference", len(papers), len(refs))
+    refs.flush()
+    log.info("[load] arxiv bbl: %d bài, %d reference", len(papers), refs.n)
 
 
-def _latest_bbl() -> dict[str, dict]:
-    """Cache .bbl có thể có nhiều bản ghi cho một bài (lần lỗi, lần thử lại): giữ bản mới nhất."""
-    return {r["arxiv_id"]: r for r in read_jsonl(arxiv.BBL_PATH)}
+def _latest_bbl() -> Iterator[tuple[str, dict]]:
+    """(arxiv_id, bản ghi) theo luồng, gộp file cache chính và các file shard. Một bài có thể có nhiều bản ghi
+    (lần lỗi, lần thử lại): giữ bản cùng quy tắc với arxiv.bbl_status (bản sau, trừ khi nó đè một kết quả đã xong).
+    Đọc hai lượt để không phải giữ cả cache trong RAM (vài GB khi đủ 23.000 bài)."""
+    chosen: dict[str, tuple[int, str]] = {}
+    for i, r in enumerate(arxiv.read_bbl()):
+        st = arxiv.effective_status(r)
+        if arxiv.supersedes(st, chosen.get(r["arxiv_id"], (None, None))[1]):
+            chosen[r["arxiv_id"]] = (i, st)
+    for i, r in enumerate(arxiv.read_bbl()):
+        if chosen[r["arxiv_id"]][0] == i:
+            yield r["arxiv_id"], r
 
 
-REF_OK = ("ok", "ok_bib")
+class _BatchInserter:
+    """Ghi dần xuống SQLite thay vì gom mọi dòng vào một list (hàng triệu reference)."""
+
+    def __init__(self, conn, table: str, size: int = 50_000):
+        self.conn, self.table, self.size, self.rows, self.n = conn, table, size, [], 0
+
+    def add(self, row: dict) -> None:
+        self.rows.append(row)
+        self.n += 1
+        if len(self.rows) >= self.size:
+            self.flush()
+
+    def flush(self) -> None:
+        _insert(self.conn, self.table, self.rows)
+        self.rows = []
+
+
+REF_OK = ("ok", "ok_bib", "ok_html")
 CITE_FEATURES = ["n_mentions", "n_sections", "in_intro", "in_related", "in_method", "in_experiment",
                  "appendix_only", "only_in_list", "min_list_size"]
 
@@ -201,8 +228,9 @@ def load_or_refs(conn, min_title_len: int = 20) -> None:
         if tn and len(tn) >= min_title_len:
             forum_by_title.setdefault(tn, f)
 
-    refs = []
-    for ax, r in _latest_bbl().items():
+    refs = _BatchInserter(conn, "or_refs")
+    citing_seen, n_in, n_feat = set(), 0, 0
+    for ax, r in _latest_bbl():
         citing = forum_by_arxiv.get(ax)
         if citing is None or r["status"] not in REF_OK:
             continue
@@ -212,17 +240,18 @@ def load_or_refs(conn, min_title_len: int = 20) -> None:
             if cited is None and len(it["title_norm"]) >= min_title_len:
                 cited, how = forum_by_title.get(it["title_norm"]), "title"
             f = feats.get(it.get("key"), {})
-            refs.append({"citing_forum": citing, "idx": i, "ref_key": it.get("key"), "title": it["title"],
-                         "title_norm": it["title_norm"], "ref_arxiv_id": it["arxiv_id"], "cited_forum": cited,
-                         "match_by": how if cited else None, "has_cite_info": int(bool(feats)),
-                         **{k: (int(f[k]) if k in f else None) for k in CITE_FEATURES}})
-    _insert(conn, "or_refs", refs)
-    n_citing = len({r["citing_forum"] for r in refs})
-    n_in = sum(r["cited_forum"] is not None for r in refs)
-    n_feat = sum(r["n_mentions"] is not None for r in refs)
+            refs.add({"citing_forum": citing, "idx": i, "ref_key": it.get("key"), "title": it["title"],
+                      "title_norm": it["title_norm"], "ref_arxiv_id": it["arxiv_id"], "cited_forum": cited,
+                      "match_by": how if cited else None, "has_cite_info": int(bool(feats)),
+                      **{k: (int(f[k]) if k in f else None) for k in CITE_FEATURES}})
+            citing_seen.add(citing)
+            n_in += cited is not None
+            n_feat += bool(f)
+    refs.flush()
+    n = refs.n
     log.info("[load] or_refs: %d bài có reference, %d reference, %d (%.1f%%) trỏ vào bài OpenReview, "
              "%d (%.1f%%) có đặc trưng trích dẫn từ .tex",
-             n_citing, len(refs), n_in, 100 * n_in / max(len(refs), 1), n_feat, 100 * n_feat / max(len(refs), 1))
+             len(citing_seen), n, n_in, 100 * n_in / max(n, 1), n_feat, 100 * n_feat / max(n, 1))
 
 
 def build_db() -> None:

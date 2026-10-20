@@ -30,6 +30,7 @@ cp .env.example .env      # điền tài khoản OpenReview, S2 API key (nếu c
 ```bash
 python -m crawler all          # cào S2: metadata -> reference -> mẫu đặc trưng cạnh -> dựng SQLite
 python -m crawler openreview   # cào OpenReview (cần đăng nhập)
+python -m crawler corpus-refs  # reference từ source LaTeX arXiv 
 python -m crawler load         # dựng lại data/corpus.sqlite sau khi cào thêm
 python -m analysis             # -> reports/sparsity_report.md
 python -m features all         # items -> quality -> embed (embed cần requirements-features.txt)
