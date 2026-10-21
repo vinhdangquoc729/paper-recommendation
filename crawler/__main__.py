@@ -14,6 +14,9 @@
     python -m crawler corpus-refs             # reference (.bbl arXiv) cho mọi bài đã có arXiv ID
     python -m crawler corpus-refs --shard 0/3 # chạy song song: 3 terminal với --shard 0/3, 1/3, 2/3
                                               # (khoảng 23.000 bài, 1 đến 1,5 ngày; ngắt và chạy lại được)
+    python -m crawler arxiv-oai               # tải metadata arXiv qua OAI-PMH (set cs từ 2022-01), ghép tiêu đề
+                                              # + tác giả để có arXiv ID cho bài S2 không gắn (reject / rút / 2026)
+    python -m crawler arxiv-oai --skip-harvest  # chỉ ghép lại từ metadata đã tải
     python -m crawler load                    # dựng data/corpus.sqlite từ data/raw/
     python -m crawler all                     # s2-papers -> s2-refs -> s2-edges -> load
 
@@ -26,7 +29,7 @@ import random
 from common.config import setup_logging
 from common.db import connect
 from common.jsonl import read_jsonl
-from crawler import arxiv, arxiv_ids, eval_targets, openreview, s2
+from crawler import arxiv, arxiv_ids, arxiv_oai, eval_targets, openreview, s2
 from crawler.load import _paper_row, build_db
 from crawler.venues import VENUES
 
@@ -122,7 +125,7 @@ def parse_shard(text: str) -> tuple[int, int]:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m crawler")
     parser.add_argument("command", choices=["s2-papers", "s2-refs", "s2-edges", "openreview", "openreview-check",
-                                            "arxiv-refs", "eval-refs", "corpus-refs", "load", "all"])
+                                            "arxiv-refs", "eval-refs", "corpus-refs", "arxiv-oai", "load", "all"])
     parser.add_argument("--venues", nargs="+", default=list(VENUES), choices=list(VENUES))
     parser.add_argument("--editions", nargs="+", type=int, help="chỉ cho lệnh openreview")
     parser.add_argument("--skip-existing", action="store_true", help="openreview: bỏ qua nguồn đã có cache")
@@ -137,6 +140,9 @@ def main() -> None:
                         help="giây giữa hai request tải source LaTeX (arxiv-refs / eval-refs / corpus-refs)")
     parser.add_argument("--shard", type=parse_shard, metavar="I/N",
                         help="corpus-refs: chỉ tải phần I trong N phần (0 <= I < N), để chạy N tiến trình song song")
+    parser.add_argument("--oai-sets", nargs="+", default=["cs"], help="arxiv-oai: set OAI-PMH (cs, stat, ...)")
+    parser.add_argument("--oai-from", default="2022-01", help="arxiv-oai: tháng bắt đầu (theo ngày cập nhật cuối)")
+    parser.add_argument("--skip-harvest", action="store_true", help="arxiv-oai: không tải, chỉ ghép")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--t", default="2025-01-01", help="eval-refs: mốc thời gian T (YYYY-MM-DD)")
     parser.add_argument("--authors", type=int, default=500, help="eval-refs: số tác giả lấy mẫu")
@@ -174,6 +180,12 @@ def main() -> None:
         run_eval_refs(args.t, args.authors, args.seed, args.interval, args.src_interval)
     if cmd == "corpus-refs":
         run_corpus_refs(args.t, args.authors, args.seed, args.src_interval, args.limit, args.shard)
+    if cmd == "arxiv-oai":
+        if not args.skip_harvest:
+            arxiv_oai.harvest(args.oai_sets, args.oai_from)
+        conn = connect()
+        arxiv_oai.match(conn)
+        conn.close()
     if cmd in ("load", "all"):
         build_db()
 

@@ -17,6 +17,7 @@ Tách "cào" và "load" để: (1) không bao giờ phải cào lại khi sửa 
 | `s2-edges --sample N` | S2 `/paper/{id}/references` | `intents`, `isInfluential`, `contexts` cho N bài | `raw/s2/edges_sample.jsonl` (resume) |
 | `openreview` | OpenReview API v1/v2 (cần đăng nhập) | submission kể cả reject, review, decision | `raw/openreview/{venue}_{edition}.jsonl.gz` |
 | `eval-refs --t T --authors N` | arXiv HTML, không có thì source LaTeX | reference cho bài sau T của N tác giả lấy mẫu: danh sách reference (.bbl, hoặc .bib nếu không có .bbl) và từng lần trích dẫn trong .tex | `raw/eval/targets_*.jsonl`, `raw/arxiv/title_lookup.jsonl`, `raw/arxiv/bbl.jsonl.gz` |
+| `arxiv-oai` | arXiv OAI-PMH (`ListRecords`, set cs, theo tháng cập nhật) | metadata arXiv (id, tiêu đề, họ tác giả, category) từ 2022, khoảng 684.000 bài, 7 phút; ghép tiêu đề (trùng hoặc giống >= 95%) + ít nhất một họ tác giả trùng để có arXiv ID cho bài S2 không gắn (reject, rút, 2026) | `raw/arxiv/oai/cs_YYYY-MM.jsonl`, ghi vào `raw/arxiv/title_lookup.jsonl` |
 | `corpus-refs` | arXiv HTML, không có thì source LaTeX | như trên, cho mọi bài trong corpus đã có arXiv ID (khoảng 23.300, chủ yếu bài accept); bài của tập đánh giá tải trước, rồi bài mới trước bài cũ | `raw/arxiv/bbl.jsonl.gz` |
 
 Venue và edition khai báo ở [venues.py](venues.py).
@@ -40,7 +41,9 @@ OpenReview không có reference. Lệnh `eval-refs` lấy reference từ source 
 1. Chọn mẫu tác giả đủ điều kiện ở mốc T (>= 2 bài trước T, >= 1 bài sau T) và các bài sau T của họ
    ([eval_targets.py](eval_targets.py)).
 2. Tìm arXiv ID theo tiêu đề: S2 `/paper/search/match` rồi API arXiv, chấp nhận khi tiêu đề giống >= 95%
-   ([arxiv_ids.py](arxiv_ids.py)).
+   ([arxiv_ids.py](arxiv_ids.py)). Cho cả corpus thì dùng `arxiv-oai` ([arxiv_oai.py](arxiv_oai.py)): tải metadata
+   arXiv một lần rồi ghép trên máy. Đối chiếu với arXiv ID S2 đã gắn: tìm lại được 97,9% (22.903 / 23.388), 5 bài lệch
+   đều là cùng nhóm tác giả đăng hai bản trùng tên; thêm được 26.262 bài (16.286 bài 2026).
 3. Lấy danh sách reference và từng lần trích dẫn (khoá, section, có trong phụ lục không, đoạn văn quanh nó):
    - trước hết từ bản HTML `export.arxiv.org/html/{id}` do LaTeXML sinh ([arxiv_html.py](arxiv_html.py)), nhẹ hơn
      gói source hàng chục lần vì không kèm hình (ví dụ 0,6 MB so với 13,4 MB);
