@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useI18n } from "../prefs";
 import type { PaperSummary } from "../types";
 import { PaperMeta } from "./PaperMeta";
+import { Tex } from "./Tex";
 
 const OPEN_DELAY_MS = 350;    // tránh bật khung khi chỉ lướt chuột qua
 const CLOSE_DELAY_MS = 150;   // đủ thời gian để di chuột từ tên bài xuống khung
@@ -43,15 +44,15 @@ export function PaperLink({ paper, className, children }: {
     >
       <Link className={className} to={`/paper/${paper.id}`} aria-describedby={open ? tipId : undefined}
             onClick={() => setOpen(false)}>
-        {children ?? paper.title}
+        {children ?? <Tex text={paper.title} />}
       </Link>
       {open && (
         <span id={tipId} role="tooltip" className={`peek ${alignRight ? "right" : ""}`}>
-          <span className="peek-title">{paper.title}</span>
+          <span className="peek-title"><Tex text={paper.title} /></span>
           <span className="peek-authors">{authors(paper.authors, 8)}</span>
           <PaperMeta paper={paper} />
           {paper.abstract_snippet ? (
-            <span className="peek-abstract">{paper.abstract_snippet}</span>
+            <span className="peek-abstract"><Tex text={paper.abstract_snippet} /></span>
           ) : (
             <span className="peek-abstract muted">{t("peek.noAbstract")}</span>
           )}

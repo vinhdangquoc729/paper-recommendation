@@ -4,21 +4,21 @@ import { api } from "../api";
 import type { MessageKey } from "../i18n";
 import { useI18n } from "../prefs";
 import { useSession } from "../session";
-import type { FeedbackAction, PaperSummary } from "../types";
+import type { FeedbackAction, FeedbackState, PaperSummary } from "../types";
 
-const STATE_BUTTONS: { action: FeedbackAction; label: MessageKey; title: MessageKey }[] = [
-  { action: "relevant", label: "fb.relevant", title: "fb.relevantTitle" },
-  { action: "not_relevant", label: "fb.notRelevant", title: "fb.notRelevantTitle" },
-  { action: "already_read", label: "fb.read", title: "fb.readTitle" },
+const STATE_BUTTONS: { action: FeedbackState; label: MessageKey; title: MessageKey }[] = [
+  { action: "interested", label: "fb.interested", title: "fb.interestedTitle" },
+  { action: "not_interested", label: "fb.notInterested", title: "fb.notInterestedTitle" },
 ];
 
-/** Các nút phản hồi cho một bài. Cập nhật lạc quan, báo lỗi nếu gửi thất bại. */
+/** Lưu / Quan tâm / Không quan tâm cho một bài ("đã đọc" tự ghi khi mở trang bài). Bấm lại nút đang bật để bỏ chọn.
+ *  Cập nhật lạc quan, báo lỗi nếu gửi thất bại. */
 export function FeedbackBar({ paper }: { paper: PaperSummary }) {
   const { t } = useI18n();
   const { session } = useSession();
   const [needLogin, setNeedLogin] = useState(false);
   const [saved, setSaved] = useState(paper.saved);
-  const [state, setState] = useState<FeedbackAction | null>(paper.feedback);
+  const [state, setState] = useState<FeedbackState | null>(paper.feedback);
   const [error, setError] = useState<string | null>(null);
 
   const send = async (action: FeedbackAction, undo: () => void) => {
@@ -42,10 +42,11 @@ export function FeedbackBar({ paper }: { paper: PaperSummary }) {
     send(next ? "saved" : "unsaved", () => setSaved(!next));
   };
 
-  const choose = (action: FeedbackAction) => {
+  const choose = (action: FeedbackState) => {
     const prev = state;
-    setState(action);
-    send(action, () => setState(prev));
+    const next = prev === action ? null : action;
+    setState(next);
+    send(next ?? "cleared", () => setState(prev));
   };
 
   return (
@@ -55,7 +56,7 @@ export function FeedbackBar({ paper }: { paper: PaperSummary }) {
       </button>
       {STATE_BUTTONS.map((b) => (
         <button key={b.action} className={state === b.action ? "on" : ""} title={t(b.title)}
-                onClick={() => choose(b.action)}>
+                aria-pressed={state === b.action} onClick={() => choose(b.action)}>
           {t(b.label)}
         </button>
       ))}

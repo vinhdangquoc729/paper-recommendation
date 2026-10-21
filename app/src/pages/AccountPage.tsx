@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { PaperLink } from "../components/PaperLink";
+import { plainTex } from "../components/Tex";
 import { useI18n } from "../prefs";
 import { useSession } from "../session";
 import type { AuthoredPaper, Meta, Preferences, Profile, ProfilePaper, ProfileRole } from "../types";
@@ -125,8 +126,8 @@ function AccountForm({ meta }: { meta: Meta | null }) {
   );
 }
 
-const ROLE_KEYS: Record<ProfileRole, "role.authored" | "role.cited" | "role.saved" | "role.read"> = {
-  authored: "role.authored", cited: "role.cited", saved: "role.saved", read: "role.read",
+const ROLE_KEYS: Record<ProfileRole, `role.${ProfileRole}`> = {
+  authored: "role.authored", cited: "role.cited", saved: "role.saved", interested: "role.interested", read: "role.read",
 };
 const PROFILE_PREVIEW = 30;
 
@@ -144,7 +145,7 @@ function ProfileTable({ rows, error }: { rows: ProfilePaper[] | null; error: str
       <p className="small muted" style={{ marginTop: 0 }}>
         {t("account.profileSummary", {
           n: int(rows.length), authored: count("authored"), cited: count("cited"),
-          saved: count("saved"), read: count("read"),
+          saved: count("saved"), interested: count("interested"), read: count("read"),
         })}
       </p>
       <table className="grid">
@@ -215,7 +216,7 @@ function AuthoredTable({ openreviewId, rows, loading, error }: {
               <td className="center">
                 <input type="checkbox" checked={confirmed[paper.id] ?? true}
                        onChange={(e) => toggle(paper.id, e.target.checked)}
-                       aria-label={t("account.mineAria", { title: paper.title })} />
+                       aria-label={t("account.mineAria", { title: plainTex(paper.title) })} />
               </td>
               <td>
                 <PaperLink paper={paper} />
@@ -301,6 +302,11 @@ function PreferencesForm({ prefs, meta, setPref }: {
             <input type="checkbox" checked={prefs.only_with_code}
                    onChange={(e) => setPref("only_with_code", e.target.checked)} />{" "}
             {t("account.onlyCode")}
+          </label>
+          <label style={{ display: "block" }}>
+            <input type="checkbox" checked={prefs.auto_read}
+                   onChange={(e) => setPref("auto_read", e.target.checked)} />{" "}
+            {t("account.autoRead")}
           </label>
         </div>
 

@@ -101,7 +101,8 @@ class FeatureBuilder:
 
     def profile(self, case: Case, mode: str) -> tuple[np.ndarray, np.ndarray]:
         """Hồ sơ (spec 7.2): bài đã viết 1,0 (đứng đầu x1,2); bài đã trích 0,5 · w(bài của mình, bài được trích);
-        bài trong `extra` (đã lưu, đã đọc) theo trọng số đã cho; tất cả nhân time decay. Bài trùng: lấy max."""
+        bài trong `extra` (đã lưu, quan tâm, đã đọc) theo trọng số đã cho, tổng không quá FEEDBACK_SHARE_MAX lần phần
+        còn lại; tất cả nhân time decay. Bài trùng: lấy max."""
         w: dict[int, float] = {}
         dec = _decay(self.t, self.w.first_seen[case.authored])
         for i, first, d in zip(case.authored, case.first_author, dec):
@@ -113,8 +114,12 @@ class FeatureBuilder:
             for j, v in zip(r, cited):
                 if v > 0:
                     w[int(j)] = max(w.get(int(j), 0.0), float(v))
+        base = sum(w.values())
+        extra = sum(case.extra.values())
+        cap = profile.FEEDBACK_SHARE_MAX
+        scale = min(1.0, cap * base / extra) if base > 0 and extra > 0 and np.isfinite(cap) else 1.0
         for j, v in case.extra.items():
-            w[int(j)] = max(w.get(int(j), 0.0), float(v))
+            w[int(j)] = max(w.get(int(j), 0.0), float(v) * scale)
         return np.fromiter(w.keys(), dtype=int), np.fromiter(w.values(), dtype=float)
 
     def build(self, cases: list[Case], batch: int = 32, sources: dict[str, int] | None = None) -> Cache:

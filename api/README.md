@@ -27,7 +27,7 @@ Tài liệu tương tác: http://127.0.0.1:8000/docs.
 | GET | `/api/me/authored` | Tài khoản | bài có `authorids` chứa OpenReview ID, kèm trạng thái xác nhận |
 | PUT | `/api/me/authored/{id}` | Tài khoản | xác nhận / bỏ xác nhận "đây là bài của tôi" |
 | GET | `/api/me/saved` | Tài khoản | bài đã lưu |
-| POST | `/api/feedback` | Bài báo, Đọc bài | `saved`, `unsaved`, `relevant`, `not_relevant`, `already_read`, `clicked` |
+| POST | `/api/feedback` | Bài báo, Đọc bài | `saved`, `unsaved`, `interested`, `not_interested`, `cleared` (bỏ chọn); `clicked` khi mở trang bài, tính là đã đọc nếu `preferences.auto_read` (mặc định bật) |
 
 Kiểu dữ liệu ở [schemas.py](schemas.py); frontend có bản sao ở `app/src/types.ts`, sửa một bên thì sửa cả bên kia.
 

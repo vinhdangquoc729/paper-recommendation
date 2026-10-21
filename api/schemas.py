@@ -3,7 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-FeedbackAction = Literal["relevant", "not_relevant", "already_read", "saved", "unsaved", "clicked", "open_pdf"]
+# interested / not_interested / cleared: trạng thái (giữ cái mới nhất); clicked / open_pdf: mở bài, tính là đã đọc nếu
+# Preferences.auto_read
+FeedbackAction = Literal["interested", "not_interested", "cleared", "saved", "unsaved", "clicked", "open_pdf"]
 
 
 class Reason(BaseModel):
@@ -36,7 +38,7 @@ class PaperSummary(BaseModel):
     reasons: list[Reason] = []     # "Vì sao gợi ý bài này"
     score: float | None = None
     saved: bool = False
-    feedback: FeedbackAction | None = None
+    feedback: Literal["interested", "not_interested"] | None = None
 
 
 class PaperList(BaseModel):
@@ -82,6 +84,7 @@ class Preferences(BaseModel):
     only_with_code: bool = False
     freshness: float = Field(0.5, ge=0, le=1)   # 0 = kinh điển, 1 = mới
     diversity: float = Field(0.3, ge=0, le=1)   # 0 = sát chủ đề, 1 = đa dạng
+    auto_read: bool = True                     # mở trang bài thì tính là đã đọc (vào hồ sơ, không gợi ý lại)
 
 
 class Profile(BaseModel):
@@ -147,5 +150,5 @@ class RegisterBody(LoginBody):
 class ProfilePaper(BaseModel):
     """Một bài trong hồ sơ dùng để gợi ý (recsys.service.profile_items)."""
     paper: PaperSummary
-    roles: list[Literal["authored", "cited", "saved", "read"]]
+    roles: list[Literal["authored", "cited", "saved", "interested", "read"]]
     weight: float                  # trọng số trong hồ sơ: vai trò x time decay (x w của cạnh với bài đã trích)

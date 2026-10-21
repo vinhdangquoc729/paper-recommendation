@@ -1,7 +1,8 @@
 // Khớp với api/schemas.py
 
 export type FeedbackAction =
-  "relevant" | "not_relevant" | "already_read" | "saved" | "unsaved" | "clicked" | "open_pdf";
+  "interested" | "not_interested" | "cleared" | "saved" | "unsaved" | "clicked" | "open_pdf";
+export type FeedbackState = "interested" | "not_interested";
 
 /** Lý do gợi ý dạng mã + tham số; dịch bằng khoá "reason.<code>" trong i18n.ts. */
 export interface Reason {
@@ -27,7 +28,7 @@ export interface PaperSummary {
   reasons: Reason[];
   score: number | null;
   saved: boolean;
-  feedback: FeedbackAction | null;
+  feedback: FeedbackState | null;
 }
 
 export interface PaperList {
@@ -73,6 +74,7 @@ export interface Preferences {
   only_with_code: boolean;
   freshness: number;
   diversity: number;
+  auto_read: boolean;
 }
 
 export interface Profile {
@@ -82,7 +84,7 @@ export interface Profile {
   preferences: Preferences;
 }
 
-export type ProfileRole = "authored" | "cited" | "saved" | "read";
+export type ProfileRole = "authored" | "cited" | "saved" | "interested" | "read";
 
 /** Một bài trong hồ sơ mà bộ gợi ý đang dùng, kèm trọng số thật. */
 export interface ProfilePaper {

@@ -278,3 +278,6 @@ input[type="checkbox"] { accent-color: var(--accent); }
   .searchbar { flex-wrap: wrap; }
   .paper-title, .paper-head h1 { overflow-wrap: anywhere; }
 }
+
+/* Công thức LaTeX trong tiêu đề, abstract (KaTeX mặc định to hơn chữ xung quanh 21%) */
+.katex { font-size: 1.05em; }

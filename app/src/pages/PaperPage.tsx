@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { FeedbackBar } from "../components/FeedbackBar";
@@ -5,7 +6,9 @@ import { PaperLink } from "../components/PaperLink";
 import { PaperMeta } from "../components/PaperMeta";
 import { PdfViewer } from "../components/PdfViewer";
 import { Reasons } from "../components/Reasons";
+import { Tex } from "../components/Tex";
 import { useI18n } from "../prefs";
+import { useSession } from "../session";
 import { useAsync } from "../useAsync";
 
 /** Đọc một bài: PDF bên trái (70%), thông tin bên phải (30%); bên dưới là "Có thể bạn quan tâm". */
@@ -16,6 +19,12 @@ export function PaperPage() {
   const paper = useAsync(() => api.paper(id), [id]);
   const related = useAsync(() => api.related(id, 10), [id]);
   const p = paper.data;
+  const { session } = useSession();
+
+  // mở bài = một lượt "clicked"; server tính là đã đọc nếu người dùng bật tuỳ chọn đó trong Tài khoản
+  useEffect(() => {
+    if (session.logged_in && id) api.feedback(id, "clicked").catch(() => {});
+  }, [id, session.logged_in]);
 
   return (
     <>
@@ -33,7 +42,7 @@ export function PaperPage() {
           </section>
 
           <aside className="reader-info">
-            <h1>{p.title}</h1>
+            <h1><Tex text={p.title} /></h1>
             <div className="paper-authors">{authors(p.authors, 20)}</div>
             <PaperMeta paper={p} showArea={false} />
             <div className="links">
@@ -46,12 +55,12 @@ export function PaperPage() {
             {p.tldr && (
               <>
                 <h3>TL;DR</h3>
-                <div className="tldr-box">{p.tldr}</div>
+                <div className="tldr-box"><Tex text={p.tldr} /></div>
               </>
             )}
 
             <h3>{t("paper.abstract")}</h3>
-            <div className="abstract">{p.abstract || <span className="muted">{t("paper.noAbstract")}</span>}</div>
+            <div className="abstract">{p.abstract ? <Tex text={p.abstract} /> : <span className="muted">{t("paper.noAbstract")}</span>}</div>
 
             <h3>{t("paper.info")}</h3>
             <table className="info">

@@ -15,9 +15,10 @@ from api.schemas import Preferences, Profile
 from recsys.service import UserHistory
 
 SESSION_DAYS = 30
-# phản hồi "trạng thái" (mỗi bài chỉ giữ cái mới nhất); "clicked", "open_pdf" chỉ ghi log
-STATE_ACTIONS = ("relevant", "not_relevant", "already_read")
-HIDE_ACTIONS = {"not_relevant", "already_read"}
+# phản hồi "trạng thái" (mỗi bài chỉ giữ cái mới nhất, "cleared" = bỏ chọn); "clicked", "open_pdf" ghi log và, nếu
+# người dùng bật tự đánh dấu đã đọc (Preferences.auto_read), thêm bài vào "đã đọc"
+STATE_ACTIONS = ("interested", "not_interested", "cleared")
+READ_ACTIONS = {"clicked", "open_pdf"}
 _SCRYPT = {"n": 2 ** 14, "r": 8, "p": 1}
 
 
@@ -146,22 +147,30 @@ class UserStore:
             elif action == "unsaved":
                 pg.execute("DELETE FROM user_papers WHERE user_id = %s AND paper_id = %s AND role = 'saved'",
                            (uid, paper_id))
-            elif action == "already_read":
+            elif action in READ_ACTIONS and self._auto_read(pg, uid):
                 pg.execute("""INSERT INTO user_papers (user_id, paper_id, role) VALUES (%s, %s, 'read')
                               ON CONFLICT (user_id, paper_id, role) DO UPDATE SET event_time = now()""",
                            (uid, paper_id))
+
+    @staticmethod
+    def _auto_read(pg, uid: int) -> bool:
+        r = pg.execute("SELECT preferences FROM users WHERE id = %s", (uid,)).fetchone()
+        return Preferences.model_validate((r and r[0]) or {}).auto_read
 
     def saved_ids(self, uid: int) -> list[str]:
         with self.pool.connection() as pg:
             return [r[0] for r in pg.execute("""SELECT paper_id FROM user_papers WHERE user_id = %s AND role = 'saved'
                                                 ORDER BY event_time DESC""", (uid,))]
 
+    def _latest_feedback(self, pg, uid: int) -> dict[str, tuple[str, datetime]]:
+        rows = pg.execute("""SELECT DISTINCT ON (paper_id) paper_id, type, created_at FROM events
+                             WHERE user_id = %s AND type = ANY(%s) ORDER BY paper_id, created_at DESC""",
+                          (uid, list(STATE_ACTIONS))).fetchall()
+        return {p: (a, t) for p, a, t in rows if a != "cleared"}
+
     def latest_feedback(self, uid: int) -> dict[str, str]:
         with self.pool.connection() as pg:
-            rows = pg.execute("""SELECT DISTINCT ON (paper_id) paper_id, type FROM events
-                                 WHERE user_id = %s AND type = ANY(%s) ORDER BY paper_id, created_at DESC""",
-                              (uid, list(STATE_ACTIONS))).fetchall()
-        return dict(rows)
+            return {p: a for p, (a, _) in self._latest_feedback(pg, uid).items()}
 
     def history(self, uid: int) -> UserHistory:
         """Tất cả những gì bộ gợi ý cần về người dùng, trong một kết nối."""
@@ -175,8 +184,12 @@ class UserStore:
                     h.saved[pid] = when
                 elif role == "read":
                     h.read[pid] = when
-        fb = self.latest_feedback(uid)
-        h.hidden = {p for p, a in fb.items() if a in HIDE_ACTIONS} | set(h.read)
+            for pid, (action, when) in self._latest_feedback(pg, uid).items():
+                if action == "interested":
+                    h.interested[pid] = when
+                else:
+                    h.not_interested.add(pid)
+        h.hidden = h.not_interested | set(h.read)
         return h
 
     def log_recommendations(self, uid: int, mode: str, model: str, catalog_version: str, recs) -> int:

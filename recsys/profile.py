@@ -11,6 +11,12 @@ import numpy as np
 # Trọng số cơ sở của các tập bài trong hồ sơ (spec 7.2), nhân time decay exp(-Δt / τ)
 TAU_YEARS = 3.0
 W_AUTHORED, W_FIRST_AUTHOR, W_CITED, W_SAVED, W_READ = 1.0, 1.2, 0.5, 0.7, 0.3
+W_INTERESTED = 0.5
+# Bài từ phản hồi (lưu / quan tâm / đã đọc) chiếm tối đa chừng này lần tổng trọng số bài đã viết + đã trích;
+# vượt thì co lại theo tỉ lệ. Mô phỏng 2026-10-21: không chặn thì lưu 30 bài đã kéo hồ sơ hẳn về chủ đề mới và
+# các sở thích nhỏ bị đẩy khỏi top 20. Người chưa có bài (không có phần gốc) thì không chặn.
+# Đang tắt (inf) để thử trên sản phẩm; 1.0 = phản hồi không nặng hơn bài đã viết + đã trích (finding.md mục 11c).
+FEEDBACK_SHARE_MAX = float("inf")
 
 K_MAX = 5
 PAPERS_PER_CLUSTER = 5

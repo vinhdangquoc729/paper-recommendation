@@ -1,5 +1,6 @@
 """Bộ gợi ý cho người dùng thật (recsys.service) trên catalog nhỏ dựng tay, và băm mật khẩu. Không cần Postgres."""
 import unittest
+from unittest import mock
 from datetime import date, datetime
 
 import numpy as np
@@ -64,6 +65,31 @@ class RecommenderTest(unittest.TestCase):
         self.assertNotIn("t1a", out)
         self.assertNotIn("t1b", out)
 
+    def test_interested_joins_profile(self):
+        h = UserHistory(interested={"t1a": datetime(2025, 12, 1)})
+        self.assertEqual(self.ids(self.rec.recommend(h))[0], "t1b")
+        self.assertIn(("t1a", ["interested"]), [(p, r) for p, r, _ in self.rec.profile_items(h)])
+
+    def test_not_interested_penalizes_similar_papers(self):
+        base = {r.paper_id: r for r in self.rec.recommend(UserHistory(openreview_id="~A"))}
+        h = UserHistory(openreview_id="~A", not_interested={"t0a"}, hidden={"t0a"})
+        out = {r.paper_id: r for r in self.rec.recommend(h)}
+        self.assertNotIn("t0a", out)
+        self.assertLess(out["t0b"].parts["not_interested"], 0)
+        self.assertLess(out["t0b"].score, base["t0b"].score)
+        self.assertNotIn("not_interested", out["t1a"].parts)     # chủ đề khác: không bị phạt
+
+    @mock.patch("recsys.profile.FEEDBACK_SHARE_MAX", 1.0)
+    def test_feedback_weight_is_capped_by_own_papers(self):
+        h = UserHistory(openreview_id="~A")
+        own = self.rec.builder.profile(self.rec.case_for(h), "raw")[1].sum()
+        h.saved = {p: datetime(2025, 12, 1) for p in ("t1a", "t1b", "t2a", "t0b")}
+        case = self.rec.case_for(h)
+        idx, w = self.rec.builder.profile(case, "raw")
+        fb = w[np.isin(idx, list(case.extra))].sum()
+        self.assertAlmostEqual(fb, own, places=5)       # 4 · 0,7 vượt phần gốc nên bị co về đúng bằng
+        self.assertAlmostEqual(w[np.isin(idx, list(case.extra))].std(), 0, places=6)
+
     def test_not_mine_removes_paper_from_profile(self):
         self.assertIsNone(self.rec.recommend(UserHistory(openreview_id="~A", not_mine={"mine"})))
 
@@ -75,7 +101,8 @@ class RecommenderTest(unittest.TestCase):
         m = LinearModel("m", ["rel_w", "pop", "age"], [1.0, 2.0, -1.5])
         np.testing.assert_allclose(Tuning(freshness=0.5).weights(m), [1.0, 2.0, -1.5])
         np.testing.assert_allclose(Tuning(freshness=0.0).weights(m), [1.0, 3.0, 0.0])
-        np.testing.assert_allclose(Tuning(freshness=1.0).weights(m), [1.0, 1.0, -3.0])
+        np.testing.assert_allclose(Tuning(freshness=1.0).weights(m), [1.0, 1.0, -6.0])
+        np.testing.assert_allclose(Tuning(freshness=0.75).weights(m), [1.0, 1.5, -3.75])
 
     def test_area_and_keyword_add_bonus_and_reason(self):
         h = UserHistory(openreview_id="~A")

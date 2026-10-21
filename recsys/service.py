@@ -34,6 +34,11 @@ KEYWORD_CACHE = 64        # số bộ từ khoá giữ kết quả so khớp tr�
 # 0,35 sd -> 3 bài khớp trong top 20, 1 sd -> 8 bài.
 AREA_BONUS_SD = 1.0
 KEYWORD_BONUS_SD = 1.0
+# "Không quan tâm": trừ điểm bài gần bài đó, tăng tuyến tính theo cosine (embedding đã trừ trung bình) từ
+# NEG_SIM_FROM tới NEG_SIM_FULL rồi giữ mức NEG_PENALTY_SD độ lệch chuẩn. Đo trên kho: cosine với bài gần nhất trung vị
+# 0,73, bài thứ 10 0,64, thứ 200 0,50, hai bài ngẫu nhiên 0,22.
+NEG_SIM_FROM, NEG_SIM_FULL = 0.5, 0.75
+NEG_PENALTY_SD = 1.0
 PREF_CODES = ("area_match", "keyword_match")     # lý do theo sở thích khai báo luôn hiện trước
 # Đặc trưng -> mã lý do hiển thị (frontend dịch); đặc trưng không có ở đây không dùng làm lời giải thích
 REASON_CODES = {"rel_w": "similar_to_profile", "rel_raw": "similar_to_profile", "rel_mean": "similar_to_profile",
@@ -58,8 +63,10 @@ class UserHistory:
     not_mine: set[str] = field(default_factory=set)          # bài OpenReview gắn tên nhưng người dùng bỏ xác nhận
     manual_authored: set[str] = field(default_factory=set)   # bài tự thêm là của mình
     saved: dict[str, datetime] = field(default_factory=dict)
-    read: dict[str, datetime] = field(default_factory=dict)
-    hidden: set[str] = field(default_factory=set)            # không liên quan / đã đọc: không gợi ý lại
+    interested: dict[str, datetime] = field(default_factory=dict)
+    read: dict[str, datetime] = field(default_factory=dict)   # mở trang bài (nếu bật tự đánh dấu đã đọc)
+    not_interested: set[str] = field(default_factory=set)    # không gợi ý lại và bớt bài tương tự
+    hidden: set[str] = field(default_factory=set)            # không gợi ý lại (không quan tâm, đã đọc)
 
 
 @dataclass
@@ -71,10 +78,13 @@ class Tuning:
     keywords: list[str] = field(default_factory=list)
 
     def weights(self, model: LinearModel) -> np.ndarray:
-        """Độ mới f: age nhân 2f (0 -> bỏ age, 1 -> gấp đôi), pop nhân 1,5 - f (kinh điển thì bài được trích nhiều nặng hơn)."""
+        """Độ mới f: age nhân 2f tới 0,5 (0 -> bỏ age, 0,5 -> trọng số đã học), rồi tăng nhanh hơn tới x4 ở f = 1
+        (x2 cũ quá yếu: kéo hết cỡ vẫn còn bài 2023 trong top 20); pop nhân 1,5 - f (kinh điển thì bài được trích nhiều
+        nặng hơn)."""
         w = model.w.copy()
         f = float(np.clip(self.freshness, 0.0, 1.0))
-        for name, scale in (("age", 2 * f), ("pop", 1.5 - f)):
+        age = 2 * f if f <= 0.5 else 1 + 6 * (f - 0.5)
+        for name, scale in (("age", age), ("pop", 1.5 - f)):
             if name in model.features:
                 w[model.features.index(name)] *= scale
         return w
@@ -130,7 +140,8 @@ class Recommender:
                 prior[int(r)] = max(prior.get(int(r), w.first_seen[i]), w.first_seen[i])
         t = np.datetime64(self.T)
         extra: dict[int, float] = {}
-        for items, base in ((h.read, profile.W_READ), (h.saved, profile.W_SAVED)):
+        for items, base in ((h.read, profile.W_READ), (h.interested, profile.W_INTERESTED),
+                            (h.saved, profile.W_SAVED)):
             for pid, when in items.items():
                 if pid in self.idx:
                     d = float(_decay(t, [np.datetime64(when.date() if isinstance(when, datetime) else when, "D")])[0])
@@ -159,9 +170,10 @@ class Recommender:
         for pid in h.saved:
             if pid in self.idx:
                 roles.setdefault(self.idx[pid], []).append("saved")
-        for pid in h.read:
-            if pid in self.idx:
-                roles.setdefault(self.idx[pid], []).append("read")
+        for role, ids in (("interested", h.interested), ("read", h.read)):
+            for pid in ids:
+                if pid in self.idx:
+                    roles.setdefault(self.idx[pid], []).append(role)
         weight = dict(zip(idx.tolist(), w.tolist()))
         # bài đã trích có w = 0 (bị bộ lọc cạnh bỏ) vẫn liệt kê, trọng số 0
         out = [(self.paper_ids[i], r, float(weight.get(i, 0.0))) for i, r in roles.items()]
@@ -183,6 +195,14 @@ class Recommender:
         kws = tuple(sorted({k.strip().lower() for k in tuning.keywords if k.strip()}))
         kw = self._keyword_mask(kws) if kws else np.zeros(len(self.text), dtype=bool)
         return area, kw
+
+    def negative_penalty(self, h: UserHistory, items: np.ndarray) -> np.ndarray:
+        """Mức phạt trong [0, 1] cho từng bài trong items: theo cosine lớn nhất với bài "không quan tâm"."""
+        neg = [self.idx[p] for p in h.not_interested if p in self.idx]
+        if not neg or len(items) == 0:
+            return np.zeros(len(items))
+        sims = (self.world.emb[items] @ self.world.emb[neg].T).max(axis=1)
+        return np.clip((sims - NEG_SIM_FROM) / (NEG_SIM_FULL - NEG_SIM_FROM), 0.0, 1.0)
 
     def recommend(self, h: UserHistory, tuning: Tuning | None = None, allowed: np.ndarray | None = None,
                   n_reasons: int = 2) -> list[Recommendation] | None:
@@ -206,6 +226,8 @@ class Recommender:
         sd = float(S[np.isfinite(S)].std()) if np.isfinite(S).sum() > 1 else 1.0
         area_bonus, kw_bonus = AREA_BONUS_SD * sd, KEYWORD_BONUS_SD * sd
         S = S + area_bonus * area_hit + kw_bonus * np.array([bool(k) for k in kw_hits], dtype=float)
+        neg = self.negative_penalty(h, items) * NEG_PENALTY_SD * sd
+        S = S - neg
         order = np.argsort(-S)
         order = order[np.isfinite(S[order])]
         if tuning.diversity > 0 and len(order) > 1:
@@ -223,6 +245,8 @@ class Recommender:
                 parts["area"] = round(area_bonus, 3)
             if kw_hits[j]:
                 parts["keyword"] = round(kw_bonus, 3)
+            if neg[j] > 0:
+                parts["not_interested"] = round(-float(neg[j]), 3)
             reasons = self._reasons(parts, item, case, kw_hits[j])[:n_reasons]
             out.append(Recommendation(self.paper_ids[item], float(S[j]), parts, reasons))
         return out

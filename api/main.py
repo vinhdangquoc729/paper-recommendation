@@ -229,10 +229,10 @@ def list_papers(q: str = "", venue: str | None = None, year: int | None = None, 
     rec = state["recommender"]
     tuning = Tuning(freshness=prefs.freshness, diversity=prefs.diversity, areas=set(prefs.areas), keywords=prefs.keywords)
     # catalog.df và Recommender cùng thứ tự bài (catalog.papers), nên mặt nạ truyền thẳng được
-    recs = rec.recommend(users.history(uid), tuning, allowed.to_numpy()) if uid and rec else None
+    history = users.history(uid) if uid else UserHistory()
+    recs = rec.recommend(history, tuning, allowed.to_numpy()) if uid and rec else None
     if recs is None:
-        exclude = {p for p, a in view.feedback.items() if a in ("not_relevant", "already_read")}
-        ranked, reasons = placeholder.recommend(cat.df[allowed], prefs, exclude)
+        ranked, reasons = placeholder.recommend(cat.df[allowed], prefs, history.hidden)
         return PaperList(mode="recommend", query="", total=len(ranked), offset=offset,
                          items=_page(ranked, view, offset, limit, reasons))
 
