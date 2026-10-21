@@ -39,6 +39,10 @@ API của OpenReview chỉ cho **khoảng 26 PDF mỗi giờ**, nên PDF chỉ t
 và được giữ lại mãi trong `data/pdf_cache/`. Bản demo lưu file trên ổ đĩa; khi triển khai có thể đổi sang
 Redis / object storage trong [pdf.py](pdf.py) mà giữ nguyên interface.
 
+Bài có arXiv ID (`arxiv_id` trong `/api/papers/{id}`) thì giao diện nhúng thẳng `https://arxiv.org/pdf/{id}`:
+arXiv cho phép iframe và không giới hạn lượt, nên không cần tải hộ. Đó là bản mới nhất tác giả đăng lên arXiv, có thể
+khác bản nộp trên OpenReview; người dùng chuyển sang bản OpenReview được. Bản OpenReview đã có trong cache thì ưu tiên.
+
 ## Gợi ý
 
 - Đã đăng nhập và hồ sơ có bài (đã viết, đã lưu, đã đọc): [recsys/service.py](../recsys/service.py), mô hình tuyến tính B6

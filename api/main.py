@@ -267,7 +267,7 @@ def get_paper(paper_id: str, session: str | None = Cookie(None)):
         **_summary(row, _UserView(_uid(session))).model_dump(),
         abstract=_str(row.abstract), keywords=row.keywords, code_url=_str(row.code_url),
         openreview_url=f"https://openreview.net/forum?id={paper_id}", pdf_url=f"https://openreview.net/pdf?id={paper_id}",
-        pdf_cached=state["pdf"].is_cached(paper_id),
+        pdf_cached=state["pdf"].is_cached(paper_id), arxiv_id=_str(row.get("arxiv_id")),
         reviews=ReviewSummary(n_reviews=len(ratings), ratings=ratings,
                               mean_rating=sum(ratings) / len(ratings) if ratings else None, rating_z=_num(row.rating_z)),
         versions=versions,

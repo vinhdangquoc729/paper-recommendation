@@ -3,18 +3,23 @@ import { api, ApiError } from "../api";
 import { useI18n } from "../prefs";
 
 type State =
+  | { kind: "arxiv" }
   | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "ready" }
   | { kind: "error"; rateLimitedMin: number | null };
 
-/** PDF nhúng trong trang. Chỉ tải khi người dùng bấm (OpenReview giới hạn số lượt tải mỗi giờ). */
-export function PdfViewer({ paperId, cached, openreviewPdf }: {
-  paperId: string; cached: boolean; openreviewPdf: string;
+const arxivPdf = (id: string) => `https://arxiv.org/pdf/${id}`;
+
+/** PDF nhúng trong trang. Thứ tự: bản OpenReview đã cache, bản arXiv (nhúng thẳng, không giới hạn lượt), còn lại thì
+ *  chỉ tải từ OpenReview khi người dùng bấm (giới hạn khoảng 26 lượt mỗi giờ). */
+export function PdfViewer({ paperId, cached, openreviewPdf, arxivId }: {
+  paperId: string; cached: boolean; openreviewPdf: string; arxivId: string | null;
 }) {
   const { t } = useI18n();
-  const [state, setState] = useState<State>(cached ? { kind: "ready" } : { kind: "idle" });
-  useEffect(() => setState(cached ? { kind: "ready" } : { kind: "idle" }), [paperId, cached]);
+  const initial = (): State => cached ? { kind: "ready" } : arxivId ? { kind: "arxiv" } : { kind: "idle" };
+  const [state, setState] = useState<State>(initial);
+  useEffect(() => setState(initial()), [paperId, cached, arxivId]);
 
   const load = async () => {
     setState({ kind: "loading" });
@@ -28,8 +33,31 @@ export function PdfViewer({ paperId, cached, openreviewPdf }: {
     }
   };
 
+  if (state.kind === "arxiv" && arxivId) {
+    return (
+      <>
+        <p className="pdf-source small muted">
+          {t("pdf.fromArxiv")}{" "}
+          <a href={arxivPdf(arxivId)} target="_blank" rel="noreferrer">{t("pdf.newTab")}</a>{" | "}
+          <a href="#" onClick={(e) => { e.preventDefault(); setState({ kind: "idle" }); }}>{t("pdf.switchToOR")}</a>
+        </p>
+        <iframe className="pdf-frame" src={arxivPdf(arxivId)} title={t("pdf.frameTitle")} />
+      </>
+    );
+  }
+
   if (state.kind === "ready") {
-    return <iframe className="pdf-frame" src={api.pdfUrl(paperId)} title={t("pdf.frameTitle")} />;
+    return (
+      <>
+        {arxivId && (
+          <p className="pdf-source small muted">
+            {t("pdf.fromOR")}{" "}
+            <a href="#" onClick={(e) => { e.preventDefault(); setState({ kind: "arxiv" }); }}>{t("pdf.switchToArxiv")}</a>
+          </p>
+        )}
+        <iframe className="pdf-frame" src={api.pdfUrl(paperId)} title={t("pdf.frameTitle")} />
+      </>
+    );
   }
 
   return (
@@ -47,6 +75,12 @@ export function PdfViewer({ paperId, cached, openreviewPdf }: {
           {state.kind === "loading" ? t("pdf.loading") : t("pdf.load")}
         </button>{" "}
         {t("pdf.or")} <a href={openreviewPdf} target="_blank" rel="noreferrer">{t("pdf.openOnOR")}</a>
+        {arxivId && (
+          <>
+            {" | "}
+            <a href="#" onClick={(e) => { e.preventDefault(); setState({ kind: "arxiv" }); }}>{t("pdf.switchToArxiv")}</a>
+          </>
+        )}
       </p>
     </div>
   );

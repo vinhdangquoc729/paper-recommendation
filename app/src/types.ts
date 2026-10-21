@@ -61,6 +61,7 @@ export interface PaperDetail extends PaperSummary {
   openreview_url: string;
   pdf_url: string;
   pdf_cached: boolean;
+  arxiv_id: string | null;   // có thì PDF lấy thẳng từ arXiv
   reviews: ReviewSummary;
   versions: PaperVersion[];
 }

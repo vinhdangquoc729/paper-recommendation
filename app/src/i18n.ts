@@ -95,6 +95,11 @@ const vi = {
   "pdf.openOnOR": "mở trên OpenReview",
   "pdf.rateLimited": "Hết lượt tải PDF của OpenReview, thử lại sau khoảng {m} phút.",
   "pdf.unavailable": "Không tải được PDF của bài này.",
+  "pdf.fromArxiv": "Bản arXiv, có thể khác bản nộp trên OpenReview.",
+  "pdf.fromOR": "Bản nộp trên OpenReview.",
+  "pdf.newTab": "Mở tab mới",
+  "pdf.switchToOR": "Xem bản OpenReview",
+  "pdf.switchToArxiv": "Xem bản arXiv",
 
   "account.title": "Tài khoản",
   "account.introBefore": "Thông tin ở đây được dùng để dựng hồ sơ gợi ý trên trang",
@@ -293,6 +298,11 @@ const en: Record<MessageKey, string> = {
   "pdf.openOnOR": "open it on OpenReview",
   "pdf.rateLimited": "OpenReview's PDF download limit is reached. Try again in about {m} minutes.",
   "pdf.unavailable": "Could not fetch the PDF for this paper.",
+  "pdf.fromArxiv": "arXiv version, may differ from the OpenReview submission.",
+  "pdf.fromOR": "OpenReview submission.",
+  "pdf.newTab": "Open in new tab",
+  "pdf.switchToOR": "View the OpenReview version",
+  "pdf.switchToArxiv": "View the arXiv version",
 
   "account.title": "Account",
   "account.introBefore": "This information builds your recommendation profile on the",

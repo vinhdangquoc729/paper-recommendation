@@ -71,6 +71,7 @@ class PaperDetail(PaperSummary):
     openreview_url: str
     pdf_url: str                   # link gốc trên OpenReview (mở tab mới)
     pdf_cached: bool               # đã có trong cache, nhúng được ngay mà không tốn lượt tải
+    arxiv_id: str | None           # có thì nhúng thẳng arxiv.org/pdf/{id} (cho phép iframe, không giới hạn lượt)
     reviews: ReviewSummary
     versions: list[PaperVersion]
 

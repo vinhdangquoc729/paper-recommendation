@@ -38,7 +38,7 @@ export function PaperPage() {
       {p && (
         <article key={p.id} className="reader">
           <section className="reader-pdf" aria-label={t("pdf.title")}>
-            <PdfViewer paperId={p.id} cached={p.pdf_cached} openreviewPdf={p.pdf_url} />
+            <PdfViewer paperId={p.id} cached={p.pdf_cached} openreviewPdf={p.pdf_url} arxivId={p.arxiv_id} />
           </section>
 
           <aside className="reader-info">
@@ -47,6 +47,7 @@ export function PaperPage() {
             <PaperMeta paper={p} showArea={false} />
             <div className="links">
               <a href={p.openreview_url} target="_blank" rel="noreferrer">{t("paper.openreview")}</a>
+              {p.arxiv_id && <a href={`https://arxiv.org/abs/${p.arxiv_id}`} target="_blank" rel="noreferrer">arXiv</a>}
               {p.pdf_cached && <a href={api.pdfUrl(p.id)} target="_blank" rel="noreferrer">{t("paper.pdfNewTab")}</a>}
               {p.code_url && <a href={p.code_url} target="_blank" rel="noreferrer">{t("paper.code")}</a>}
             </div>
