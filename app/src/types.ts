@@ -1,6 +1,7 @@
 // Khớp với api/schemas.py
 
-export type FeedbackAction = "relevant" | "not_relevant" | "already_read" | "saved" | "unsaved" | "clicked";
+export type FeedbackAction =
+  "relevant" | "not_relevant" | "already_read" | "saved" | "unsaved" | "clicked" | "open_pdf";
 
 /** Lý do gợi ý dạng mã + tham số; dịch bằng khoá "reason.<code>" trong i18n.ts. */
 export interface Reason {
@@ -77,8 +78,30 @@ export interface Preferences {
 export interface Profile {
   display_name: string;
   email: string;
-  openreview_id: string;
+  openreview_id: string;   // chỉ đọc: gắn với tài khoản tác giả
   preferences: Preferences;
+}
+
+export type ProfileRole = "authored" | "cited" | "saved" | "read";
+
+/** Một bài trong hồ sơ mà bộ gợi ý đang dùng, kèm trọng số thật. */
+export interface ProfilePaper {
+  paper: PaperSummary;
+  roles: ProfileRole[];
+  weight: number;
+}
+
+export interface SessionInfo {
+  logged_in: boolean;
+  display_name: string;
+  openreview_id: string;   // rỗng nếu tài khoản không gắn với tác giả nào
+  email: string;
+}
+
+export interface AuthorHit {
+  openreview_id: string;
+  name: string;
+  n_papers: number;
 }
 
 export interface AuthoredPaper {

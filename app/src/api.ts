@@ -1,6 +1,7 @@
 // Lớp gọi API duy nhất của frontend: đổi backend thì chỉ sửa file này.
 import type {
-  AuthoredPaper, FeedbackAction, Meta, PaperDetail, PaperFilters, PaperList, PaperSummary, Profile,
+  AuthoredPaper, AuthorHit, FeedbackAction, Meta, PaperDetail, PaperFilters, PaperList, PaperSummary, Profile,
+  ProfilePaper, SessionInfo,
 } from "./types";
 
 export class ApiError extends Error {
@@ -40,6 +41,26 @@ function query(params: Record<string, string | number | boolean | undefined>): s
 export const api = {
   meta: () => request<Meta>("/meta"),
 
+  // Phiên đăng nhập: cookie httponly do backend đặt, frontend chỉ hỏi trạng thái
+  session: () => request<SessionInfo>("/session"),
+
+  /** Bản demo: đăng nhập với tư cách một tác giả có trong dữ liệu (không xác minh). */
+  loginAsAuthor: (openreviewId: string) =>
+    request<SessionInfo>("/session/author", { method: "POST", body: JSON.stringify({ openreview_id: openreviewId }) }),
+
+  login: (email: string, password: string) =>
+    request<SessionInfo>("/session/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+
+  register: (email: string, password: string, displayName: string) =>
+    request<SessionInfo>("/session/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password, display_name: displayName }),
+    }),
+
+  logout: () => request<void>("/session", { method: "DELETE" }),
+
+  searchAuthors: (q: string) => request<AuthorHit[]>(`/authors${query({ q })}`),
+
   /** q rỗng: gợi ý theo hồ sơ; có q: tìm theo từ khoá. */
   papers: (q: string, filters: PaperFilters, offset: number, limit: number) =>
     request<PaperList>(`/papers${query({ q, ...filters, offset, limit })}`),
@@ -68,6 +89,9 @@ export const api = {
     }),
 
   saved: () => request<PaperSummary[]>("/me/saved"),
+
+  /** Mọi bài bộ gợi ý đang dùng làm hồ sơ: đã viết, đã trích, đã lưu, đã đọc. */
+  profilePapers: () => request<ProfilePaper[]>("/me/profile-papers"),
 
   feedback: (paperId: string, action: FeedbackAction) =>
     request<void>("/feedback", { method: "POST", body: JSON.stringify({ paper_id: paperId, action }) }),

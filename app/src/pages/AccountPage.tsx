@@ -3,25 +3,42 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { PaperLink } from "../components/PaperLink";
 import { useI18n } from "../prefs";
-import type { AuthoredPaper, Meta, Preferences, Profile } from "../types";
+import { useSession } from "../session";
+import type { AuthoredPaper, Meta, Preferences, Profile, ProfilePaper, ProfileRole } from "../types";
 import { useAsync } from "../useAsync";
 
-/** Tài khoản: thông tin cá nhân, OpenReview ID để nhận diện bài đã đăng, và sở thích. */
+/** Tài khoản: thông tin cá nhân, bài đã đăng (theo OpenReview ID của tài khoản tác giả), sở thích, bài đã lưu. */
 export function AccountPage({ meta }: { meta: Meta | null }) {
+  const { t } = useI18n();
+  const { session, ready } = useSession();
+  if (!ready) return <p className="muted">{t("common.loading")}</p>;
+  if (!session.logged_in) {
+    return (
+      <>
+        <h1>{t("account.title")}</h1>
+        <p>{t("account.needLogin")} <Link to="/login">{t("session.login")}</Link></p>
+      </>
+    );
+  }
+  // đổi người đăng nhập thì dựng lại form từ đầu
+  return <AccountForm key={session.openreview_id || session.email} meta={meta} />;
+}
+
+function AccountForm({ meta }: { meta: Meta | null }) {
   const { t, time, decision } = useI18n();
   const me = useAsync(() => api.me(), []);
   const [form, setForm] = useState<Profile | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [authoredKey, setAuthoredKey] = useState(0);   // tăng lên để tải lại danh sách bài của tôi
 
   useEffect(() => {
     if (me.data) setForm(me.data);
   }, [me.data]);
 
-  const authored = useAsync(() => api.authored(), [authoredKey]);
+  const authored = useAsync(() => api.authored(), []);
   const saved = useAsync(() => api.saved(), []);
+  const profilePapers = useAsync(() => api.profilePapers(), []);
 
   if (me.error) return <p className="error">{me.error}</p>;
   if (!form) return <p className="muted">{t("common.loading")}</p>;
@@ -33,11 +50,9 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const idChanged = form.openreview_id.trim() !== (me.data?.openreview_id ?? "");
       const res = await api.saveMe(form);
       me.setData(res);
       setSavedAt(time(new Date()));
-      if (idChanged) setAuthoredKey((k) => k + 1);
     } catch (e) {
       setSaveError((e as Error).message);
     } finally {
@@ -65,8 +80,8 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
           <div className="hint">{t("account.emailHint")}</div>
 
           <label htmlFor="orid">{t("account.orid")}</label>
-          <input id="orid" type="text" value={form.openreview_id} placeholder="~Nguyen_Van_A1"
-                 onChange={(e) => setForm({ ...form, openreview_id: e.target.value })} />
+          <input id="orid" type="text" value={form.openreview_id || t("account.noAuthor")} readOnly
+                 className={form.openreview_id ? "" : "muted"} />
           <div className="hint">{t("account.oridHint")}</div>
         </div>
       </fieldset>
@@ -84,6 +99,9 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
         {savedAt && !saveError && <span className="muted small">{t("account.savedAt", { time: savedAt })}</span>}
         {saveError && <span className="small" style={{ color: "var(--danger)" }}>{saveError}</span>}
       </div>
+
+      <h2>{t("account.profileTitle")}</h2>
+      <ProfileTable rows={profilePapers.data} error={profilePapers.error} />
 
       <h2>{t("account.saved")}</h2>
       {saved.data && saved.data.length === 0 && (
@@ -103,6 +121,53 @@ export function AccountPage({ meta }: { meta: Meta | null }) {
           </tbody>
         </table>
       )}
+    </>
+  );
+}
+
+const ROLE_KEYS: Record<ProfileRole, "role.authored" | "role.cited" | "role.saved" | "role.read"> = {
+  authored: "role.authored", cited: "role.cited", saved: "role.saved", read: "role.read",
+};
+const PROFILE_PREVIEW = 30;
+
+/** Hồ sơ mà bộ gợi ý đang dùng: mọi bài kèm vai trò và trọng số, nặng nhất lên trước. */
+function ProfileTable({ rows, error }: { rows: ProfilePaper[] | null; error: string | null }) {
+  const { t, decimal, int } = useI18n();
+  const [all, setAll] = useState(false);
+  if (error) return <p className="error">{error}</p>;
+  if (!rows) return <p className="muted">{t("common.loading")}</p>;
+  if (rows.length === 0) return <p className="muted">{t("account.profileEmpty")}</p>;
+  const count = (r: ProfileRole) => rows.filter((x) => x.roles.includes(r)).length;
+  const shown = all ? rows : rows.slice(0, PROFILE_PREVIEW);
+  return (
+    <>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        {t("account.profileSummary", {
+          n: int(rows.length), authored: count("authored"), cited: count("cited"),
+          saved: count("saved"), read: count("read"),
+        })}
+      </p>
+      <table className="grid">
+        <thead>
+          <tr><th>{t("paper.colPaper")}</th><th>{t("account.profileRole")}</th>
+            <th className="center">{t("account.profileWeight")}</th></tr>
+        </thead>
+        <tbody>
+          {shown.map((r) => (
+            <tr key={r.paper.id}>
+              <td><PaperLink paper={r.paper} /></td>
+              <td style={{ whiteSpace: "nowrap" }}>{r.roles.map((x) => t(ROLE_KEYS[x])).join(", ")}</td>
+              <td className="center">{decimal(r.weight, 2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > PROFILE_PREVIEW && (
+        <p><button onClick={() => setAll(!all)}>
+          {all ? t("account.profileLess") : t("account.profileAll", { n: int(rows.length) })}
+        </button></p>
+      )}
+      <p className="small muted">{t("account.profileHint")}</p>
     </>
   );
 }

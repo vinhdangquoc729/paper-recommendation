@@ -3,14 +3,16 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-FeedbackAction = Literal["relevant", "not_relevant", "already_read", "saved", "unsaved", "clicked"]
+FeedbackAction = Literal["relevant", "not_relevant", "already_read", "saved", "unsaved", "clicked", "open_pdf"]
 
 
 class Reason(BaseModel):
     """Lý do "Vì sao gợi ý" dạng mã + tham số; frontend dịch theo ngôn ngữ đang chọn.
 
     code: area_match {area} / keyword_match {keywords} / strong_decision {decision, venue, year} /
-          high_review / similar_content / same_area
+          high_review / similar_content / same_area (gợi ý theo sở thích khai báo, bài liên quan);
+          similar_to_profile {title} / cocited_with_yours / shares_references / cites_you / by_coauthor /
+          widely_cited / high_quality (bộ gợi ý recsys, theo đặc trưng đóng góp nhiều nhất)
     """
     code: str
     params: dict[str, str | int | float] = {}
@@ -85,7 +87,7 @@ class Preferences(BaseModel):
 class Profile(BaseModel):
     display_name: str = ""
     email: str = ""
-    openreview_id: str = ""        # dạng ~Ten_Ho1
+    openreview_id: str = ""        # dạng ~Ten_Ho1; chỉ đọc, gắn với tài khoản tác giả
     preferences: Preferences = Preferences()
 
 
@@ -114,3 +116,36 @@ class Meta(BaseModel):
     years: list[int]
     areas: list[Facet]
     decisions: list[Facet]
+
+
+class SessionInfo(BaseModel):
+    logged_in: bool
+    display_name: str = ""
+    openreview_id: str = ""        # rỗng nếu tài khoản không gắn với tác giả nào
+    email: str = ""
+
+
+class AuthorHit(BaseModel):
+    openreview_id: str
+    name: str
+    n_papers: int
+
+
+class LoginAsAuthorBody(BaseModel):
+    openreview_id: str
+
+
+class LoginBody(BaseModel):
+    email: str
+    password: str
+
+
+class RegisterBody(LoginBody):
+    display_name: str = ""
+
+
+class ProfilePaper(BaseModel):
+    """Một bài trong hồ sơ dùng để gợi ý (recsys.service.profile_items)."""
+    paper: PaperSummary
+    roles: list[Literal["authored", "cited", "saved", "read"]]
+    weight: float                  # trọng số trong hồ sơ: vai trò x time decay (x w của cạnh với bài đã trích)

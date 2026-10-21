@@ -1,7 +1,7 @@
-"""Logic gợi ý TẠM THỜI, chỉ để giao diện có dữ liệu thật mà hiển thị.
+"""Phần gợi ý không cần hồ sơ: bộ lọc, tìm kiếm theo từ khoá, và gợi ý cold-start theo sở thích khai báo.
 
-Sẽ được thay bằng module recsys (hồ sơ đa sở thích, sinh ứng viên, xếp hạng, MMR) theo spec Khối 3 đến 6.
-Giữ nguyên chữ ký các hàm để main.py không phải đổi.
+Người dùng có bài (đã viết, đã lưu, đã đọc) được gợi ý bằng recsys.service; file này chỉ dùng khi hồ sơ còn trống
+(spec 7.4 tầng 3) hoặc chưa đăng nhập.
 """
 import numpy as np
 import pandas as pd
@@ -27,17 +27,34 @@ def apply_filters(df: pd.DataFrame, venue: str | None, year: int | None, decisio
     return df
 
 
+def recommend_filter(df: pd.DataFrame, prefs: Preferences, venue: str | None, year: int | None,
+                     decision: str | None, has_code: bool | None) -> pd.Series:
+    """Bộ lọc cứng cho gợi ý: bộ lọc trên trang gộp với sở thích khai báo. Cùng một tiêu chí mà hai bên đều đặt thì
+    bộ lọc trên trang thắng (chọn "Reject" trên trang vẫn ra bài reject dù sở thích chỉ lấy bài được nhận)."""
+    mask = pd.Series(True, index=df.index)
+    if venue:
+        mask &= df.venue_key == venue
+    elif prefs.venues:
+        mask &= df.venue_key.isin(prefs.venues)
+    if year:
+        mask &= df.edition == year
+    elif prefs.year_from:
+        mask &= df.edition >= prefs.year_from
+    if decision == "accepted":
+        mask &= df.decision.isin(ACCEPTED)
+    elif decision:
+        mask &= df.decision == decision
+    elif not prefs.include_rejected:
+        mask &= df.decision.isin(ACCEPTED)
+    if has_code or prefs.only_with_code:
+        mask &= df.code_url.notna()
+    return mask
+
+
 def recommend(df: pd.DataFrame, prefs: Preferences, exclude: set[str]) -> tuple[pd.DataFrame, dict[str, list[str]]]:
-    """Tạm: điểm = chất lượng x độ mới, cộng điểm nếu khớp lĩnh vực / từ khoá trong preference."""
+    """Cold-start (chưa đăng nhập, hoặc hồ sơ chưa có bài nào): điểm = chất lượng x độ mới, cộng điểm nếu khớp
+    lĩnh vực / từ khoá trong sở thích khai báo. df đã qua recommend_filter."""
     df = df[(df.is_candidate == 1) & ~df.item_id.isin(exclude)]
-    if not prefs.include_rejected:
-        df = df[df.decision.isin(ACCEPTED)]
-    if prefs.only_with_code:
-        df = df[df.code_url.notna()]
-    if prefs.venues:
-        df = df[df.venue_key.isin(prefs.venues)]
-    if prefs.year_from:
-        df = df[df.edition >= prefs.year_from]
 
     newest = pd.to_datetime(df.first_seen).max()
     age_days = (newest - pd.to_datetime(df.first_seen)).dt.days.clip(lower=0)

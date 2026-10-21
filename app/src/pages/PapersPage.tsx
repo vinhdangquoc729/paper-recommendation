@@ -2,8 +2,10 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { PaperRow } from "../components/PaperRow";
+import { RankingPrefs } from "../components/RankingPrefs";
 import type { MessageKey } from "../i18n";
 import { useI18n } from "../prefs";
+import { useSession } from "../session";
 import type { Meta, PaperFilters } from "../types";
 import { useAsync } from "../useAsync";
 
@@ -22,6 +24,7 @@ const DECISION_OPTIONS: { value: string; label: MessageKey | string; i18n: boole
 /** Màn chính: ô tìm kiếm trống thì hiện gợi ý theo hồ sơ, có từ khoá thì hiện kết quả tìm kiếm. */
 export function PapersPage({ meta }: { meta: Meta | null }) {
   const { t, int } = useI18n();
+  const { session } = useSession();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const page = Math.max(1, Number(params.get("page") ?? 1));
@@ -32,12 +35,13 @@ export function PapersPage({ meta }: { meta: Meta | null }) {
     has_code: params.get("code") === "1" || undefined,
   };
 
+  const [prefsRev, setPrefsRev] = useState(0);     // sở thích vừa lưu -> tải lại gợi ý
   const [draft, setDraft] = useState(q);
   useEffect(() => setDraft(q), [q]);
 
   const { data, error, loading } = useAsync(
     () => api.papers(q, filters, (page - 1) * PAGE_SIZE, PAGE_SIZE),
-    [params.toString()],
+    [params.toString(), session.logged_in, session.openreview_id, session.email, prefsRev],
   );
 
   const update = (changes: Record<string, string | null>) => {
@@ -109,9 +113,13 @@ export function PapersPage({ meta }: { meta: Meta | null }) {
               {t("papers.onlyCode")}
             </label>
           </fieldset>
-          {!isSearch && (
+          {!isSearch && session.logged_in && (
+            <RankingPrefs key={session.openreview_id || session.email} meta={meta}
+                          onSaved={() => setPrefsRev((r) => r + 1)} />
+          )}
+          {!isSearch && !session.logged_in && (
             <p className="small muted">
-              {t("papers.hintBefore")} <Link to="/account">{t("nav.account")}</Link>{t("papers.hintAfter")}
+              {t("papers.anonBefore")} <Link to="/login">{t("session.login")}</Link>{t("papers.anonAfter")}
             </p>
           )}
         </aside>

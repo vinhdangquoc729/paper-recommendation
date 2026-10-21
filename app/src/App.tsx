@@ -1,10 +1,12 @@
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import type { Lang } from "./i18n";
 import { AccountPage } from "./pages/AccountPage";
+import { LoginPage } from "./pages/LoginPage";
 import { PaperPage } from "./pages/PaperPage";
 import { PapersPage } from "./pages/PapersPage";
 import { Theme, useI18n, usePrefs } from "./prefs";
+import { useSession } from "./session";
 import { useAsync } from "./useAsync";
 
 export function App() {
@@ -23,6 +25,7 @@ export function App() {
             <NavLink to="/" end>{t("nav.papers")}</NavLink>
             <NavLink to="/account">{t("nav.account")}</NavLink>
           </nav>
+          <SessionBox />
           <ViewerPrefs />
         </div>
       </header>
@@ -33,12 +36,32 @@ export function App() {
           <Route path="/" element={<PapersPage meta={meta.data} />} />
           <Route path="/paper/:id" element={<PaperPage />} />
           <Route path="/account" element={<AccountPage meta={meta.data} />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="*" element={<p>{t("app.notFound")} <Link to="/">{t("app.home")}</Link></p>} />
         </Routes>
       </main>
 
       <footer className={wide ? "footer wide" : "footer"}>{t("app.footer")}</footer>
     </>
+  );
+}
+
+/** Người đang đăng nhập và nút đăng xuất, hoặc liên kết tới màn đăng nhập. */
+function SessionBox() {
+  const { session, ready, logout } = useSession();
+  const { t } = useI18n();
+  const navigate = useNavigate();
+  if (!ready) return null;
+  if (!session.logged_in) {
+    return <nav className="nav" style={{ marginLeft: 0 }}><NavLink to="/login">{t("session.login")}</NavLink></nav>;
+  }
+  return (
+    <div className="session-box">
+      <span className="who" title={session.openreview_id || session.email}>
+        {session.display_name || session.email}
+      </span>
+      <button type="button" onClick={async () => { await logout(); navigate("/"); }}>{t("session.logout")}</button>
+    </div>
   );
 }
 

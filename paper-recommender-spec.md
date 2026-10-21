@@ -594,7 +594,7 @@ Dùng **chính pipeline của sản phẩm** để đánh giá offline.
 
 1. Chọn tác giả có ≥ 3 bài trong corpus, trong đó ≥ 1 bài đăng sau thời điểm T.
 2. **Hồ sơ tại T**: chỉ dùng các bài `authored` và `cited` có thời gian < T. Mọi thống kê (coupling, co-citation, citation_count, điểm chất lượng dựa trên citation) **phải tính lại chỉ với dữ liệu < T** để tránh rò rỉ.
-3. **Ground truth**: các bài trong corpus được tác giả trích ở các bài đăng **sau T**, chỉ tính cạnh có w ≥ θ_edge, và loại những bài tác giả đã trích trước T.
+3. **Ground truth**: các bài trong corpus được tác giả trích ở các bài đăng **sau T**, loại những bài tác giả đã trích trước T và bài của chính tác giả. Dùng **mọi cạnh trích**, không lọc theo w ≥ θ_edge: w là thứ V3 đang thử nghiệm, lọc ground truth bằng w thì cấu hình dùng w (B5) được chấm bằng chính thước đo của nó. Thêm biến thể chỉ tính bài mà tác giả đứng đầu hoặc cuối.
 4. Với chế độ Digest: ground truth chỉ gồm bài đăng trong khoảng [T, T + Δ].
 5. Chia theo thời gian: T_train < T_val < T_test. Chia tác giả thành tập train / val / test riêng cho LTR.
 

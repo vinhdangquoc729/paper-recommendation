@@ -1,0 +1,54 @@
+# Sản phẩm: Postgres + pgvector, backend API, giao diện.
+#
+# Chạy cả bộ (giao diện tại http://localhost:8080):
+#   docker compose up -d --build
+# Lần đầu, hoặc sau khi cào / tính lại features (chạy trên máy, đọc data/):
+#   python -m appdb migrate && python -m appdb sync
+#   docker compose restart api          # hoặc chờ API tự nạp lại catalog (kiểm tra mỗi phút)
+#
+# Khi phát triển chỉ cần DB, API và Vite chạy trên máy:
+#   docker compose up -d db
+#
+# Cổng DB trên máy là 55432 (tránh các Postgres cài sẵn ở 5432, 5433).
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: paperrec
+      POSTGRES_USER: paperrec
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-paperrec}
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperrec -d paperrec"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://paperrec:${POSTGRES_PASSWORD:-paperrec}@db:5432/paperrec
+    env_file:
+      - path: .env               # tài khoản OpenReview để tải PDF; không bắt buộc
+        required: false
+    volumes:
+      - ./data:/data             # data/models (mô hình xếp hạng), data/pdf_cache
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  app:
+    build: ./app
+    ports:
+      - "${APP_PORT:-8080}:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  pgdata:

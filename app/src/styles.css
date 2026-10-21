@@ -86,7 +86,7 @@ h3 { font-size: 15px; margin: 16px 0 6px; }
 
 .nav { display: flex; gap: 2px; margin-left: auto; }
 .nav a { color: var(--header-text); text-decoration: none; padding: 4px 12px; border: 1px solid transparent; }
-.nav a:hover { border-color: #5f9b78; color: #fff; }
+.nav a:hover { border-color: rgba(255, 255, 255, 0.35); color: #fff; }
 .nav a.active { background: var(--header-active-bg); color: var(--header-active-text); border-color: var(--header-active-bg); }
 
 .page { max-width: 1120px; margin: 0 auto; padding: 18px 16px 48px; }
@@ -109,6 +109,15 @@ h3 { font-size: 15px; margin: 16px 0 6px; }
 .lang-switch button.on { background: var(--header-active-bg); color: var(--header-active-text); font-weight: 600; }
 .viewer-prefs select option { color: var(--text); background: var(--bg); }
 
+/* Người đang đăng nhập, cạnh menu */
+.session-box { display: flex; align-items: center; gap: 8px; margin-left: 12px; font-size: 13px; color: var(--header-text); }
+.session-box .who { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.session-box button {
+  font-size: 12px; padding: 1px 8px; color: var(--header-text); background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.session-box button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); border-color: rgba(255, 255, 255, 0.35); }
+
 /* ---------- Nút và ô nhập ---------- */
 
 button, .button {
@@ -120,10 +129,12 @@ button:disabled { color: var(--faint); cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent-strong); color: #fff; }
 button.primary:hover:not(:disabled) { background: var(--accent-strong); }
 
-input[type="text"], input[type="email"], input[type="search"], select, textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="search"], select, textarea {
   font: inherit; color: var(--text); background: var(--input-bg); border: 1px solid var(--rule-strong); padding: 4px 6px;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+input[readonly] { background: transparent; color: var(--muted); border-style: dashed; }
+input[readonly]:focus { outline: none; border-color: var(--rule-strong); }
 
 /* ---------- Thanh tìm kiếm ---------- */
 
@@ -239,6 +250,14 @@ table.info td { padding: 3px 0; }
 .checklist { max-height: 240px; overflow-y: auto; border: 1px solid var(--rule); padding: 6px 8px; columns: 2; column-gap: 24px; }
 .checklist label { display: block; break-inside: avoid; font-size: 13px; }
 .checklist .count { color: var(--faint); font-size: 11px; }
+
+/* Sở thích gợi ý ở cột trái trang danh sách */
+.rprefs input[type="range"] { width: 100%; accent-color: var(--accent); margin: 2px 0 0; }
+.rprefs input[type="text"] { width: 100%; }
+.rprefs .range-ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-bottom: 8px; }
+.rprefs .rprefs-head { margin-top: 8px; }
+.rprefs select { margin-top: 4px; }
+.rprefs p { margin: 8px 0 0; }
 
 .slider { display: grid; grid-template-columns: 90px 1fr 90px; gap: 8px; align-items: center; max-width: 520px; font-size: 13px; }
 .slider span:last-child { text-align: right; }
