@@ -24,7 +24,7 @@ from api.userstore import AuthError, UserStore
 from appdb import DATABASE_URL, connect
 from appdb.catalog import load_catalog
 from recsys.model import DEFAULT_MODEL, LinearModel
-from recsys.service import Recommender, Tuning
+from recsys.service import Recommender, Tuning, UserHistory
 
 log = logging.getLogger(__name__)
 
@@ -276,16 +276,25 @@ def get_paper(paper_id: str, session: str | None = Cookie(None)):
 
 @app.get("/api/papers/{paper_id}/related", response_model=list[PaperSummary])
 def related(paper_id: str, limit: int = Query(10, ge=1, le=50), session: str | None = Cookie(None)):
-    """Mục "Có thể bạn quan tâm" dưới trang đọc bài."""
+    """Mục "Có thể bạn quan tâm" dưới trang đọc bài: recsys.related (nội dung, đồ thị trích dẫn, tác giả, hồ sơ);
+    không có bộ gợi ý thì theo embedding."""
     cat = _cat()
     row = cat.get(paper_id)
     if row is None:
         raise HTTPException(404, "Không tìm thấy bài")
+    uid = _uid(session)
+    view = _UserView(uid)
+    rec = state["recommender"]
+    if rec is not None:
+        users = _users()
+        prefs = users.get_profile(uid).preferences if uid else Preferences()
+        recs = rec.related(paper_id, users.history(uid) if uid else UserHistory(), limit, prefs.diversity)
+        if recs is not None:
+            return [_summary(cat.get(r.paper_id), view, [_reason_label(x) for x in r.reasons], r.score) for r in recs]
     pairs = cat.similar_by_embedding(paper_id, limit * 2)
     reason = {"code": "similar_content"}
     if pairs is None:
         pairs, reason = placeholder.related_fallback(cat.df, row, limit), {"code": "same_area"}
-    view = _UserView(_uid(session))
     out = []
     for pid, sim in pairs:
         r = cat.get(pid)

@@ -4,6 +4,7 @@ import { FeedbackBar } from "../components/FeedbackBar";
 import { PaperLink } from "../components/PaperLink";
 import { PaperMeta } from "../components/PaperMeta";
 import { PdfViewer } from "../components/PdfViewer";
+import { Reasons } from "../components/Reasons";
 import { useI18n } from "../prefs";
 import { useAsync } from "../useAsync";
 
@@ -111,7 +112,6 @@ export function PaperPage() {
               <th>{t("paper.colPaper")}</th>
               <th>{t("paper.venue")}</th>
               <th>{t("paper.decision")}</th>
-              <th className="num" title={t("paper.colSimTitle")}>{t("paper.colSim")}</th>
             </tr>
           </thead>
           <tbody>
@@ -121,10 +121,10 @@ export function PaperPage() {
                 <td>
                   <PaperLink paper={r} />
                   <div className="small muted">{authors(r.authors, 4)}</div>
+                  <Reasons reasons={r.reasons} />
                 </td>
                 <td style={{ whiteSpace: "nowrap" }}>{r.venue} {r.year}</td>
                 <td>{decision(r.decision)}</td>
-                <td className="num">{r.score !== null ? decimal(r.score) : ""}</td>
               </tr>
             ))}
           </tbody>

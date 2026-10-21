@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from recsys import profile
+from recsys import profile, related
 from recsys.model import LinearModel
 from recsys.pipeline import FeatureBuilder, _decay
 from recsys.ranking import linear_scores, standardize
@@ -99,6 +99,7 @@ class Recommender:
 
         items = pd.DataFrame({"item_id": p.id, "first_seen": p.first_seen.fillna(p.decision_date)})
         pa = catalog.paper_authors
+        self.author_name = dict(zip(pa.openreview_id, pa.name)) if "name" in pa else {}
         authors = pa.groupby("paper_id").openreview_id.apply(list).rename("authorids").reset_index() \
             .rename(columns={"paper_id": "item_id"})
         c = catalog.citations
@@ -226,6 +227,28 @@ class Recommender:
             out.append(Recommendation(self.paper_ids[item], float(S[j]), parts, reasons))
         return out
 
+    def related(self, paper_id: str, h: UserHistory | None = None, k: int = 10,
+                diversity: float = 0.3) -> list[Recommendation] | None:
+        """Bài liên quan tới paper_id (recsys.related), cá nhân hoá theo hồ sơ nếu có. None nếu bài không có trong pool."""
+        if paper_id not in self.idx or self.world.pool_pos[self.idx[paper_id]] < 0:
+            return None
+        case = self.case_for(h) if h is not None else None
+        if case is None and h is not None and h.hidden:
+            # chưa có hồ sơ nhưng đã ẩn vài bài: vẫn loại các bài đó
+            case = Case("", "user", np.array([], dtype=int), np.array([], dtype=bool), {}, np.array([], dtype=int),
+                        exclude=np.array([self.idx[p] for p in h.hidden if p in self.idx], dtype=int))
+        return related.related(self, paper_id, case, k, diversity)
+
+    def closest_profile_title(self, case: Case | None, item: int) -> dict:
+        """{"title": bài trong hồ sơ gần item nhất} cho lý do "gần với bài X trong hồ sơ của bạn"."""
+        if case is None:
+            return {}
+        prof = np.concatenate([case.authored, np.fromiter(case.extra, dtype=int, count=len(case.extra))]).astype(int)
+        if len(prof) == 0:
+            return {}
+        sims = self.world.emb[prof] @ self.world.emb[item]
+        return {"title": str(self.titles[prof[int(np.argmax(sims))]])}
+
     def _reasons(self, parts: dict[str, float], item: int, case: Case, kw_hits: list[str] = ()) -> list[dict]:
         """Đặc trưng đóng góp dương lớn nhất -> lý do; độ liên quan nội dung kèm tên bài gần nhất trong hồ sơ.
         Khớp lĩnh vực / từ khoá (người dùng tự khai báo) luôn đứng trước để họ thấy sở thích của mình có tác dụng."""
@@ -237,10 +260,7 @@ class Recommender:
             seen.add(code)
             params = {}
             if code == "similar_to_profile":
-                prof = np.concatenate([case.authored, np.fromiter(case.extra, dtype=int, count=len(case.extra))])
-                if len(prof):
-                    sims = self.world.emb[prof] @ self.world.emb[item]
-                    params = {"title": str(self.titles[prof[int(np.argmax(sims))]])}
+                params = self.closest_profile_title(case, item)
             elif code == "area_match":
                 params = {"area": str(self.areas.iat[item])}          # API đổi sang nhãn hiển thị
             elif code == "keyword_match":

@@ -19,7 +19,8 @@ export function App() {
       <header className="masthead">
         <div className={wide ? "masthead-inner wide" : "masthead-inner"}>
           <Link to="/" className="brand">
-            Paper Recommender <small>{t("app.tagline")}</small>
+            <img src="/scimate-icon.png" alt="SciMate" className="brand-logo" width={34} height={34} />
+            <span>SciMate <small>{t("app.tagline")}</small></span>
           </Link>
           <nav className="nav">
             <NavLink to="/" end>{t("nav.papers")}</NavLink>

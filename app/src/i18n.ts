@@ -87,8 +87,6 @@ const vi = {
   "paper.related": "Có thể bạn quan tâm",
   "paper.relatedEmpty": "Chưa tìm được bài liên quan.",
   "paper.colPaper": "Bài báo",
-  "paper.colSim": "Tương đồng",
-  "paper.colSimTitle": "Độ tương đồng nội dung (cosine)",
 
   "pdf.title": "Bản PDF",
   "pdf.frameTitle": "Bản PDF của bài báo",
@@ -192,6 +190,11 @@ const vi = {
   "rprefs.saving": "Đang lưu...",
   "rprefs.saved": "Đã lưu, gợi ý đã cập nhật.",
   "rprefs.error": "Không lưu được sở thích.",
+  "reason.cited_by_this": "Được bài này trích",
+  "reason.cites_this": "Trích bài này",
+  "reason.cocited_with_this": "Thường được trích cùng bài này",
+  "reason.shares_refs_with_this": "Có nhiều tài liệu tham khảo chung với bài này",
+  "reason.same_author": "Cùng tác giả: {names}",
 };
 
 export type MessageKey = keyof typeof vi;
@@ -282,8 +285,6 @@ const en: Record<MessageKey, string> = {
   "paper.related": "You may also like",
   "paper.relatedEmpty": "No related papers found.",
   "paper.colPaper": "Paper",
-  "paper.colSim": "Similarity",
-  "paper.colSimTitle": "Content similarity (cosine)",
 
   "pdf.title": "PDF",
   "pdf.frameTitle": "Paper PDF",
@@ -387,6 +388,11 @@ const en: Record<MessageKey, string> = {
   "rprefs.saving": "Saving...",
   "rprefs.saved": "Saved, recommendations updated.",
   "rprefs.error": "Could not save preferences.",
+  "reason.cited_by_this": "Cited by this paper",
+  "reason.cites_this": "Cites this paper",
+  "reason.cocited_with_this": "Often cited together with this paper",
+  "reason.shares_refs_with_this": "Shares many references with this paper",
+  "reason.same_author": "Same author: {names}",
 };
 
 export type Lang = "vi" | "en";

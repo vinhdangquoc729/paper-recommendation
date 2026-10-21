@@ -101,6 +101,18 @@ class RecommenderTest(unittest.TestCase):
         case.boost = np.isin(self.rec.paper_ids, ["t2a"])
         self.assertIn("t2a", pool_ids(self.rec.builder.build([case], sources={"rel_raw": 1})))
 
+    def test_related_puts_cited_paper_first_with_reason(self):
+        out = self.rec.related("mine")
+        self.assertEqual(out[0].paper_id, "c0")                       # cùng chủ đề và được bài này trích
+        self.assertEqual(out[0].reasons[0], {"code": "cited_by_this", "params": {}})
+        self.assertNotIn("wd", [r.paper_id for r in out])
+
+    def test_related_skips_papers_the_user_knows(self):
+        ids = [r.paper_id for r in self.rec.related("t0a", UserHistory(openreview_id="~A"))]
+        self.assertNotIn("mine", ids)     # đã viết
+        self.assertNotIn("c0", ids)       # đã trích
+        self.assertIn("t0b", ids)
+
 
 class RecommendFilterTest(unittest.TestCase):
     df = pd.DataFrame({"venue_key": ["iclr", "icml", "iclr"], "edition": [2024, 2025, 2025],

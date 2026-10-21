@@ -11,14 +11,14 @@ from eval.protocol import build_cases, build_world, split_of
 T = "2025-01-01"
 
 
-def _world():
+def _world(c3_authors=("~Y",)):
     # bài: o1, o2 cũ của A; c1..c4 bài khác trước T; n1 bài A viết sau T (đứng đầu); n2 bài A viết sau T (ở giữa)
     # late: bài người khác công khai sau T
     items = pd.DataFrame({"item_id": ["o1", "o2", "c1", "c2", "c3", "c4", "mine", "n1", "n2", "late"],
                           "first_seen": ["2023-01-01", "2024-01-01", "2023-05-01", "2023-06-01", "2024-02-01",
                                          "2024-03-01", "2024-04-01", "2025-03-01", "2025-04-01", "2025-02-01"]})
     authors = pd.DataFrame({"item_id": ["o1", "o2", "c1", "c2", "c3", "c4", "mine", "n1", "n2", "late"],
-                            "authorids": [["~A"], ["~B", "~A"], ["~X"], ["~X"], ["~Y"], ["~Y"], ["~A", "~Z"],
+                            "authorids": [["~A"], ["~B", "~A"], ["~X"], ["~X"], list(c3_authors), ["~Y"], ["~A", "~Z"],
                                           ["~A", "~Q"], ["~Q", "~A", "~R"], ["~X"]]})
     refs = pd.DataFrame({"citing_item": ["o1", "o2", "n1", "n1", "n1", "n2", "c3", "c4"],
                          "cited_item": ["c1", "c1", "c1", "c2", "mine", "c3", "c1", "c1"]})
@@ -50,6 +50,14 @@ class ProtocolTest(unittest.TestCase):
         # c1 đã trích trước T, mine là bài của A, late công khai sau T: chỉ còn c2 (từ n1) và c3 (từ n2)
         self.assertEqual(self.name(a.gt), ["c2", "c3"])
         self.assertEqual((a.n_after, a.n_after_refs), (2, 2))
+
+    def test_novel_variant_drops_papers_by_earlier_coauthors(self):
+        # c3 có Z, người viết chung "mine" với A trước T: A gần như chắc chắn đã biết bài này
+        w = _world(c3_authors=("~Y", "~Z"))
+        (a,) = [c for c in build_cases(w, "novel") if c.author == "~A"]
+        self.assertEqual(sorted(w.item_ids[i] for i in a.gt), ["c2"])
+        (a,) = [c for c in build_cases(w, "all") if c.author == "~A"]
+        self.assertEqual(sorted(w.item_ids[i] for i in a.gt), ["c2", "c3"])
 
     def test_lead_variant_drops_middle_author_papers(self):
         (a,) = [c for c in build_cases(self.w, "lead") if c.author == "~A"]

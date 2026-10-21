@@ -6,6 +6,7 @@
     python -m eval run --methods B2 --limit 300        # thử nhanh
     python -m eval ablation                            # B4-B8 và ablation từng thành phần (học trên train, chấm val)
     python -m eval ablation --no-center                # như trên với embedding gốc (chưa trừ trung bình)
+    python -m eval ablation --gt novel                 # ground truth bỏ bài của cộng sự; dùng lại cache của `all`
 
 Đọc data/corpus.sqlite và data/features/; ghi reports/eval/*.md và data/eval/*.csv (độ đo từng tác giả).
 """
@@ -90,6 +91,16 @@ def run_eval(T: str, split: str, variant: str, methods: list[str], limit: int | 
     print(f"Đã ghi {path}")
 
 
+def _relabel(cache: Cache, cases_all, cases, world) -> Cache:
+    """Cache của biến thể `all` -> cache cho `cases` (cùng tác giả hoặc ít hơn, ground truth nhỏ hơn): ứng viên và
+    đặc trưng giữ nguyên, chỉ tính lại nhãn."""
+    row = {c.author: i for i, c in enumerate(cases_all)}
+    idx = np.array([row[c.author] for c in cases], dtype=int)
+    cand = cache.cand[idx]
+    y = np.stack([np.isin(cand[k], world.pool_pos[c.gt]) & (cand[k] >= 0) for k, c in enumerate(cases)])
+    return Cache([c.author for c in cases], cand, cache.F[idx], y, np.array([len(c.gt) for c in cases]))
+
+
 def _cache(builder: FeatureBuilder, cases, path, rebuild: bool) -> Cache:
     if path.exists() and not rebuild:
         cache = Cache.load(path)
@@ -107,15 +118,23 @@ def run_ablation(T: str, variant: str, n_train: int, limit: int | None, seed: in
     world = load_world(conn, T, center=center)
     q = quality_at(world, T, conn)
     conn.close()
-    cases = build_cases(world, variant)
+    # `novel` chỉ bớt ground truth của `all`: chọn tác giả và tính đặc trưng như `all` để dùng chung cache
+    base_variant = "all" if variant == "novel" else variant
+    cases = build_cases(world, base_variant)
     rng = np.random.default_rng(seed)
     train = [c for c in cases if c.split == "train"]
     train = [train[i] for i in sorted(rng.permutation(len(train))[:n_train])]
     val = [c for c in cases if c.split == "val"]
     if limit:
         val = [val[i] for i in sorted(rng.permutation(len(val))[:limit])]
+    if variant != base_variant:
+        narrow = {c.author: c for c in build_cases(world, variant)}
+        train_base, val_base = train, val
+        train = [narrow[c.author] for c in train if c.author in narrow]
+        val = [narrow[c.author] for c in val if c.author in narrow]
     log.info("[eval] ablation: %d tác giả train, %d tác giả val", len(train), len(val))
 
+    log.info("[eval] ground truth=%s: %d tác giả train, %d tác giả val", variant, len(train), len(val))
     base = {"results": {}, "coverage": {}}
     for key in ("B1", "B3"):
         method = METHODS[key](world)
@@ -125,9 +144,16 @@ def run_ablation(T: str, variant: str, n_train: int, limit: int | None, seed: in
     out_dir = DATA_DIR / "eval"
     out_dir.mkdir(parents=True, exist_ok=True)
     builder = FeatureBuilder(world, q)
-    tag = f"T{T}_{variant}_s{seed}" + ("_c" if center else "")    # _c: embedding đã trừ trung bình
-    tr_cache = _cache(builder, train, out_dir / f"hybrid_{tag}_train{n_train}.npz", rebuild)
-    va_cache = _cache(builder, val, out_dir / f"hybrid_{tag}_val{limit or 'all'}.npz", rebuild)
+    tag = f"T{T}_{base_variant}_s{seed}" + ("_c" if center else "")    # _c: embedding đã trừ trung bình
+    if variant != base_variant:
+        tr_cache = _relabel(_cache(builder, train_base, out_dir / f"hybrid_{tag}_train{n_train}.npz", rebuild),
+                            train_base, train, world)
+        va_cache = _relabel(_cache(builder, val_base, out_dir / f"hybrid_{tag}_val{limit or 'all'}.npz", rebuild),
+                            val_base, val, world)
+        tag = tag.replace(f"_{base_variant}_", f"_{variant}_")
+    else:
+        tr_cache = _cache(builder, train, out_dir / f"hybrid_{tag}_train{n_train}.npz", rebuild)
+        va_cache = _cache(builder, val, out_dir / f"hybrid_{tag}_val{limit or 'all'}.npz", rebuild)
     cover = lambda c: 100 * (c.y.sum(1) / c.n_gt).mean()
 
     results, cov, weights, learned = ablation.run_ablation(world, q, tr_cache, train, va_cache, val, base, objective)
@@ -140,7 +166,8 @@ def run_ablation(T: str, variant: str, n_train: int, limit: int | None, seed: in
                          "ndcg@10_val": round(float(results[b6]["ndcg@10"].mean()), 4),
                          "ndcg@10g_val": round(float(results[b6]["ndcg@10g"].mean()), 4)})
     model.info["center_emb"] = center
-    model_path = MODELS_DIR / f"linear_b6_{objective}{'_c' if center else ''}.json"
+    model_path = MODELS_DIR / (f"linear_b6_{objective}{'_c' if center else ''}"
+                               + (f"_{variant}" if variant != "all" else "") + ".json")
     model.save(model_path)
     log.info("[eval] đã lưu mô hình %s", model_path)
     pd.concat([df.assign(method=n) for n, df in results.items()]).to_csv(

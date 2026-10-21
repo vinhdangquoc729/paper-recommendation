@@ -8,6 +8,8 @@ Quay lại mốc T, coi mỗi tác giả là một người dùng:
 
 Ground truth dùng MỌI cạnh trích, không lọc theo trọng số w của V3: lọc bằng w thì cấu hình dùng w được chấm
 bằng chính thước đo của nó. Biến thể `lead` chỉ tính bài mà tác giả đứng đầu hoặc cuối (người chọn reference).
+Biến thể `novel` bỏ thêm bài do cộng sự trước T viết: trên val, bài của cộng sự chiếm 7% ground truth, gấp 23 lần tỉ lệ
+trong pool (trích trong nhóm), nên `all` thưởng cho việc gợi ý bài người dùng gần như chắc chắn đã biết.
 
 Mỗi bài ground truth còn có MỨC 0-3 theo cách bài sau T của tác giả trích nó (edge_grade), dùng cho NDCG nhiều mức.
 Mức chỉ dựa trên ngữ cảnh tác giả viết (số lần nhắc, section, cụm trích, phụ lục), không dùng độ giống nội dung hay
@@ -28,7 +30,7 @@ log = logging.getLogger(__name__)
 
 MIN_BEFORE = 2                                   # số bài tối thiểu trước T để dựng được hồ sơ
 SPLITS = (("train", 60), ("val", 20), ("test", 20))
-GT_VARIANTS = ("all", "lead")
+GT_VARIANTS = ("all", "lead", "novel")
 
 
 def split_of(author: str) -> str:
@@ -60,7 +62,8 @@ def build_cases(world: World, variant: str = "all") -> list[Case]:
         if len(before) < MIN_BEFORE or not after:
             continue
         lead = [i for i in after if world.item_authors[i][0] == author or world.item_authors[i][-1] == author]
-        source = [i for i in (after if variant == "all" else lead) if world.has_refs[i]]
+        source = [i for i in (lead if variant == "lead" else after) if world.has_refs[i]]
+        coauthors = {a for i in before for a in world.item_authors[i]} - {author} if variant == "novel" else set()
         prior: dict[int, np.datetime64] = {}
         for i in before:
             for r in world.cites.get(i, empty):
@@ -73,7 +76,8 @@ def build_cases(world: World, variant: str = "all") -> list[Case]:
                 best[int(r)] = max(best.get(int(r), 0), g)
                 n_strong[int(r)] = n_strong.get(int(r), 0) + (g >= 1)
         gt = sorted(r for r in best
-                    if world.pool_pos[r] >= 0 and r not in prior and author not in world.item_authors[r])
+                    if world.pool_pos[r] >= 0 and r not in prior and author not in world.item_authors[r]
+                    and not coauthors.intersection(world.item_authors[r]))
         if not gt:
             continue
         # được >= 2 bài sau T của tác giả trích (không phải cho có): quan tâm bền, mức cao nhất
