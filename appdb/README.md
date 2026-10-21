@@ -41,7 +41,5 @@ qua `paper_versions` khi bài được gộp khác đi.
 | `events` | nhật ký thao tác, chỉ ghi thêm: lưu, liên quan / không liên quan, đã đọc, mở PDF |
 | `rec_runs`, `rec_items` | mỗi lần gợi ý: 100 bài đầu, điểm, đóng góp từng đặc trưng (để giải thích và đo online) |
 
-Dung lượng sau sync: khoảng 550 MB (75.013 bài, 128.691 tác giả và tài khoản, 160.743 cạnh trích dẫn), phần lớn là embedding.
-
-Bài mà `authors` có ít hơn số tác giả đếm thô trong `or_submissions` (khoảng 100 ID) là vì `sync` lấy danh sách tác giả
+Bài mà `authors` có ít hơn số tác giả đếm thô trong `or_submissions` là vì `sync` lấy danh sách tác giả
 dài nhất trong các lần nộp lại của một bài, giống `recsys.snapshot`.
